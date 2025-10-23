@@ -1,5 +1,6 @@
 import { createSignal, Show, For, createEffect } from "solid-js"
 import { isToolCallExpanded, toggleToolCallExpanded } from "../stores/tool-call-state"
+import { CodeBlockInline } from "./code-block-inline"
 
 interface ToolCallProps {
   toolCall: any
@@ -57,6 +58,42 @@ function getRelativePath(path: string): string {
   if (!path) return ""
   const parts = path.split("/")
   return parts.slice(-1)[0] || path
+}
+
+function getLanguageFromPath(path: string): string | undefined {
+  if (!path) return undefined
+  const ext = path.split(".").pop()?.toLowerCase()
+  const langMap: Record<string, string> = {
+    ts: "typescript",
+    tsx: "typescript",
+    js: "javascript",
+    jsx: "javascript",
+    py: "python",
+    sh: "bash",
+    bash: "bash",
+    json: "json",
+    html: "html",
+    css: "css",
+    md: "markdown",
+    yaml: "yaml",
+    yml: "yaml",
+    sql: "sql",
+    rs: "rust",
+    go: "go",
+    cpp: "cpp",
+    cc: "cpp",
+    cxx: "cpp",
+    hpp: "cpp",
+    h: "cpp",
+    c: "c",
+    java: "java",
+    cs: "csharp",
+    php: "php",
+    rb: "ruby",
+    swift: "swift",
+    kt: "kotlin",
+  }
+  return ext ? langMap[ext] : undefined
 }
 
 export default function ToolCall(props: ToolCallProps) {
@@ -263,11 +300,8 @@ export default function ToolCall(props: ToolCallProps) {
     if (preview && input.filePath) {
       const lines = preview.split("\n")
       const truncated = lines.slice(0, 6).join("\n")
-      return (
-        <pre class="tool-call-content">
-          <code>{truncated}</code>
-        </pre>
-      )
+      const language = getLanguageFromPath(input.filePath)
+      return <CodeBlockInline code={truncated} language={language} />
     }
 
     return null
@@ -281,9 +315,7 @@ export default function ToolCall(props: ToolCallProps) {
     if (diff) {
       return (
         <div class="tool-call-diff">
-          <pre class="tool-call-content">
-            <code>{diff}</code>
-          </pre>
+          <CodeBlockInline code={diff} language="diff" />
         </div>
       )
     }
@@ -298,11 +330,8 @@ export default function ToolCall(props: ToolCallProps) {
     if (input.content && input.filePath) {
       const lines = input.content.split("\n")
       const truncated = lines.slice(0, 10).join("\n")
-      return (
-        <pre class="tool-call-content">
-          <code>{truncated}</code>
-        </pre>
-      )
+      const language = getLanguageFromPath(input.filePath)
+      return <CodeBlockInline code={truncated} language={language} />
     }
 
     return null
@@ -315,15 +344,10 @@ export default function ToolCall(props: ToolCallProps) {
     const output = metadata.output
 
     if (input.command) {
+      const fullOutput = `$ ${input.command}${output ? "\n" + output : ""}`
       return (
         <div class="tool-call-bash">
-          <pre class="tool-call-content">
-            <code>
-              $ {input.command}
-              {output && "\n"}
-              {output}
-            </code>
-          </pre>
+          <CodeBlockInline code={fullOutput} language="bash" />
         </div>
       )
     }
@@ -338,11 +362,7 @@ export default function ToolCall(props: ToolCallProps) {
     if (output) {
       const lines = output.split("\n")
       const truncated = lines.slice(0, 10).join("\n")
-      return (
-        <pre class="tool-call-content">
-          <code>{truncated}</code>
-        </pre>
-      )
+      return <CodeBlockInline code={truncated} language="markdown" />
     }
 
     return null
@@ -428,11 +448,7 @@ export default function ToolCall(props: ToolCallProps) {
     if (output) {
       const lines = output.split("\n")
       const truncated = lines.slice(0, 10).join("\n")
-      return (
-        <pre class="tool-call-content">
-          <code>{truncated}</code>
-        </pre>
-      )
+      return <CodeBlockInline code={truncated} />
     }
 
     return null
