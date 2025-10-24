@@ -101,6 +101,7 @@ const SessionView: Component<{
             const textarea = document.querySelector(".prompt-input") as HTMLTextAreaElement
             if (textarea) {
               textarea.value = textParts.map((p: any) => p.text).join("\n")
+              textarea.dispatchEvent(new Event("input", { bubbles: true }))
               textarea.focus()
             }
           }
@@ -469,6 +470,7 @@ const App: Component = () => {
               const textarea = document.querySelector(".prompt-input") as HTMLTextAreaElement
               if (textarea) {
                 textarea.value = textParts.map((p: any) => p.text).join("\n")
+                textarea.dispatchEvent(new Event("input", { bubbles: true }))
                 textarea.focus()
               }
             }
