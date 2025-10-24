@@ -48,12 +48,14 @@ const FilePicker: Component<FilePickerProps> = (props) => {
       console.log(`[FilePicker] Git files response received in ${elapsed}ms:`, gitResponse)
 
       if (gitResponse?.data && gitResponse.data.length > 0) {
-        const gitFiles: FileItem[] = gitResponse.data.map((file: any) => ({
-          path: file.path,
-          added: file.added,
-          removed: file.removed,
-          isGitFile: true,
-        }))
+        const gitFiles: FileItem[] = gitResponse.data
+          .filter((file: any) => !file.path.endsWith("/"))
+          .map((file: any) => ({
+            path: file.path,
+            added: file.added,
+            removed: file.removed,
+            isGitFile: true,
+          }))
         console.log(`[FilePicker] Cached ${gitFiles.length} git files`)
         setCachedGitFiles(gitFiles)
       } else {
@@ -91,6 +93,7 @@ const FilePicker: Component<FilePickerProps> = (props) => {
         console.log(`[FilePicker] Search response received in ${elapsed}ms:`, searchResponse)
 
         searchFiles = (searchResponse?.data || [])
+          .filter((path: string) => !path.endsWith("/"))
           .filter((path: string) => !gitFiles.some((gf) => gf.path === path))
           .map((path: string) => ({
             path,
@@ -106,6 +109,7 @@ const FilePicker: Component<FilePickerProps> = (props) => {
         console.log(`[FilePicker] All files response received in ${elapsed}ms:`, searchResponse)
 
         searchFiles = (searchResponse?.data || [])
+          .filter((path: string) => !path.endsWith("/"))
           .filter((path: string) => !gitFiles.some((gf) => gf.path === path))
           .map((path: string) => ({
             path,
