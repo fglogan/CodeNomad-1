@@ -189,9 +189,22 @@ body {
 }
 
 .message-content {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  padding-top: 6px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-queued-badge {
+  display: inline-block;
+  background-color: var(--accent-color);
+  color: white;
+  font-weight: bold;
+  padding: 4px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  letter-spacing: 0.5px;
 }
 
 .message-text {

@@ -487,34 +487,40 @@ function handleMessageUpdate(instanceId: string, event: any): void {
     const part = event.properties?.part
     if (!part) return
 
-    const session = instanceSessions.get(part.sessionID)
-    if (!session) return
-
-    let message = session.messages.find((m) => m.id === part.messageID)
-
-    if (!message) {
-      message = {
-        id: part.messageID,
-        sessionId: part.sessionID,
-        type: "assistant",
-        parts: [part],
-        timestamp: Date.now(),
-        status: "streaming",
-      }
-      session.messages.push(message)
-    } else {
-      const partIndex = message.parts.findIndex((p: any) => p.id === part.id)
-      if (partIndex === -1) {
-        message.parts.push(part)
-      } else {
-        message.parts[partIndex] = part
-      }
-    }
-
     setSessions((prev) => {
       const next = new Map(prev)
       const instanceSessions = new Map(prev.get(instanceId))
-      instanceSessions.set(part.sessionID, { ...session })
+      const session = instanceSessions.get(part.sessionID)
+
+      if (!session) return prev
+
+      const messages = [...session.messages]
+      const messageIndex = messages.findIndex((m) => m.id === part.messageID)
+
+      if (messageIndex === -1) {
+        messages.push({
+          id: part.messageID,
+          sessionId: part.sessionID,
+          type: "assistant",
+          parts: [part],
+          timestamp: Date.now(),
+          status: "streaming",
+        })
+      } else {
+        const message = messages[messageIndex]
+        const parts = [...message.parts]
+        const partIndex = parts.findIndex((p: any) => p.id === part.id)
+
+        if (partIndex === -1) {
+          parts.push(part)
+        } else {
+          parts[partIndex] = part
+        }
+
+        messages[messageIndex] = { ...message, parts }
+      }
+
+      instanceSessions.set(part.sessionID, { ...session, messages })
       next.set(instanceId, instanceSessions)
       return next
     })
@@ -522,36 +528,51 @@ function handleMessageUpdate(instanceId: string, event: any): void {
     const info = event.properties?.info
     if (!info) return
 
-    const session = instanceSessions.get(info.sessionID)
-    if (!session) return
-
-    let message = session.messages.find((m) => m.id === info.id)
-
-    if (!message) {
-      message = {
-        id: info.id,
-        sessionId: info.sessionID,
-        type: info.role === "user" ? "user" : "assistant",
-        parts: [],
-        timestamp: info.time?.created || Date.now(),
-        status: "complete",
-      }
-      session.messages.push(message)
-    } else {
-      // Update existing message - replace temp message with real one
-      message.id = info.id
-      message.status = "complete"
-    }
-
     setSessions((prev) => {
       const next = new Map(prev)
       const instanceSessions = new Map(prev.get(instanceId))
-      const updatedSession = instanceSessions.get(info.sessionID)
-      if (updatedSession) {
-        const messagesInfo = new Map(updatedSession.messagesInfo)
-        messagesInfo.set(info.id, info)
-        instanceSessions.set(info.sessionID, { ...updatedSession, messagesInfo })
+      const session = instanceSessions.get(info.sessionID)
+
+      if (!session) return prev
+
+      const messages = [...session.messages]
+      const messageIndex = messages.findIndex((m) => m.id === info.id)
+      const tempMessageIndex = messages.findIndex(
+        (m) =>
+          m.id.startsWith("temp-") &&
+          m.type === (info.role === "user" ? "user" : "assistant") &&
+          m.status === "sending",
+      )
+
+      if (messageIndex > -1) {
+        messages[messageIndex] = {
+          ...messages[messageIndex],
+          status: "complete",
+        }
+      } else if (tempMessageIndex > -1) {
+        messages[tempMessageIndex] = {
+          id: info.id,
+          sessionId: info.sessionID,
+          type: info.role === "user" ? "user" : "assistant",
+          parts: [],
+          timestamp: info.time?.created || Date.now(),
+          status: "complete",
+        }
+      } else {
+        messages.push({
+          id: info.id,
+          sessionId: info.sessionID,
+          type: info.role === "user" ? "user" : "assistant",
+          parts: [],
+          timestamp: info.time?.created || Date.now(),
+          status: "complete",
+        })
       }
+
+      const messagesInfo = new Map(session.messagesInfo)
+      messagesInfo.set(info.id, info)
+
+      instanceSessions.set(info.sessionID, { ...session, messages, messagesInfo })
       next.set(instanceId, instanceSessions)
       return next
     })
@@ -638,6 +659,36 @@ async function sendMessage(
   if (!session) {
     throw new Error("Session not found")
   }
+
+  const tempMessageId = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}`
+
+  const textParts: any[] = []
+  textParts.push({
+    type: "text" as const,
+    text: prompt,
+    id: `${tempMessageId}-text`,
+  })
+
+  const optimisticMessage: Message = {
+    id: tempMessageId,
+    sessionId,
+    type: "user",
+    parts: textParts,
+    timestamp: Date.now(),
+    status: "sending",
+  }
+
+  setSessions((prev) => {
+    const next = new Map(prev)
+    const instanceSessions = new Map(prev.get(instanceId))
+    const session = instanceSessions.get(sessionId)
+    if (session) {
+      const messages = [...session.messages, optimisticMessage]
+      instanceSessions.set(sessionId, { ...session, messages })
+      next.set(instanceId, instanceSessions)
+    }
+    return next
+  })
 
   const parts: any[] = [
     {

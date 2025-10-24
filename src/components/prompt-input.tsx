@@ -26,7 +26,6 @@ interface PromptInputProps {
 
 export default function PromptInput(props: PromptInputProps) {
   const [prompt, setPrompt] = createSignal("")
-  const [sending, setSending] = createSignal(false)
   const [history, setHistory] = createSignal<string[]>([])
   const [historyIndex, setHistoryIndex] = createSignal(-1)
   const [isFocused, setIsFocused] = createSignal(false)
@@ -396,9 +395,18 @@ export default function PromptInput(props: PromptInputProps) {
   async function handleSend() {
     const text = prompt().trim()
     const currentAttachments = attachments()
-    if (!text || sending() || props.disabled) return
+    if (!text || props.disabled) return
 
-    setSending(true)
+    setPrompt("")
+    clearAttachments(props.instanceId, props.sessionId)
+    setIgnoredAtPositions(new Set<number>())
+    setPasteCount(0)
+    setImageCount(0)
+
+    if (textareaRef) {
+      textareaRef.style.height = "auto"
+    }
+
     try {
       await addToHistory(props.instanceFolder, text)
 
@@ -407,20 +415,10 @@ export default function PromptInput(props: PromptInputProps) {
       setHistoryIndex(-1)
 
       await props.onSend(text, currentAttachments)
-      setPrompt("")
-      clearAttachments(props.instanceId, props.sessionId)
-      setIgnoredAtPositions(new Set<number>())
-      setPasteCount(0)
-      setImageCount(0)
-
-      if (textareaRef) {
-        textareaRef.style.height = "auto"
-      }
     } catch (error) {
       console.error("Failed to send message:", error)
       alert("Failed to send message: " + (error instanceof Error ? error.message : String(error)))
     } finally {
-      setSending(false)
       textareaRef?.focus()
     }
   }
@@ -612,7 +610,7 @@ export default function PromptInput(props: PromptInputProps) {
     textareaRef?.focus()
   }
 
-  const canSend = () => (prompt().trim().length > 0 || attachments().length > 0) && !sending() && !props.disabled
+  const canSend = () => (prompt().trim().length > 0 || attachments().length > 0) && !props.disabled
 
   const instance = () => getActiveInstance()
 
@@ -720,16 +718,14 @@ export default function PromptInput(props: PromptInputProps) {
             onPaste={handlePaste}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            disabled={sending() || props.disabled}
+            disabled={props.disabled}
             rows={1}
             style={attachments().length > 0 ? { "padding-top": "8px" } : {}}
           />
         </div>
 
         <button class="send-button" onClick={handleSend} disabled={!canSend()} aria-label="Send message">
-          <Show when={sending()} fallback={<span class="send-icon">▶</span>}>
-            <span class="spinner-small" />
-          </Show>
+          <span class="send-icon">▶</span>
         </button>
       </div>
       <div class="prompt-input-hints">

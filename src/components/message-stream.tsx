@@ -47,11 +47,21 @@ export default function MessageStream(props: MessageStreamProps) {
   const displayItems = createMemo(() => {
     const items: DisplayItem[] = []
 
+    let lastAssistantMessageId = ""
+    for (let i = props.messages.length - 1; i >= 0; i--) {
+      if (props.messages[i].type === "assistant") {
+        lastAssistantMessageId = props.messages[i].id
+        break
+      }
+    }
+
     for (const message of props.messages) {
       const messageInfo = props.messagesInfo?.get(message.id)
       const textParts = message.parts.filter((p) => p.type === "text" && !p.synthetic)
       const toolParts = message.parts.filter((p) => p.type === "tool")
       const reasoningParts = message.parts.filter((p) => p.type === "reasoning")
+
+      const isQueued = message.type === "user" && message.id > lastAssistantMessageId
 
       if (textParts.length > 0 || reasoningParts.length > 0 || messageInfo?.error) {
         items.push({
@@ -59,6 +69,7 @@ export default function MessageStream(props: MessageStreamProps) {
           data: {
             ...message,
             parts: [...textParts, ...reasoningParts],
+            isQueued,
           },
           messageInfo,
         })
@@ -156,7 +167,7 @@ export default function MessageStream(props: MessageStreamProps) {
                   </div>
                 }
               >
-                <MessageItem message={item.data} messageInfo={item.messageInfo} />
+                <MessageItem message={item.data} messageInfo={item.messageInfo} isQueued={item.data.isQueued} />
               </Show>
             )
           }}

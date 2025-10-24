@@ -5,6 +5,7 @@ import MessagePart from "./message-part"
 interface MessageItemProps {
   message: Message
   messageInfo?: any
+  isQueued?: boolean
 }
 
 export default function MessageItem(props: MessageItemProps) {
@@ -49,6 +50,10 @@ export default function MessageItem(props: MessageItemProps) {
       </div>
 
       <div class="message-content">
+        <Show when={props.isQueued && isUser()}>
+          <div class="message-queued-badge">QUEUED</div>
+        </Show>
+
         <Show when={errorMessage()}>
           <div class="message-error-block">⚠️ {errorMessage()}</div>
         </Show>
