@@ -1,4 +1,6 @@
 import { Component, createSignal, createEffect, For, Show, onCleanup } from "solid-js"
+import * as fs from "fs"
+import * as path from "path"
 
 interface FileItem {
   path: string
@@ -15,75 +17,118 @@ interface FilePickerProps {
   instanceClient: any
   searchQuery: string
   textareaRef?: HTMLTextAreaElement
+  workspaceFolder: string
 }
 
 const FilePicker: Component<FilePickerProps> = (props) => {
   const [files, setFiles] = createSignal<FileItem[]>([])
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [loading, setLoading] = createSignal(false)
-  const [cachedGitFiles, setCachedGitFiles] = createSignal<FileItem[]>([])
+  const [allFiles, setAllFiles] = createSignal<FileItem[]>([])
   const [isInitialized, setIsInitialized] = createSignal(false)
+  const [gitignorePatterns, setGitignorePatterns] = createSignal<Set<string>>(new Set())
 
   let containerRef: HTMLDivElement | undefined
-  let gitFilesFetched = false
 
-  async function fetchGitFiles() {
-    if (!props.instanceClient) {
-      console.log("[FilePicker] No instance client available")
-      return
-    }
-
-    if (gitFilesFetched) {
-      console.log("[FilePicker] Git files already fetched")
-      return
-    }
-
-    gitFilesFetched = true
-    console.log("[FilePicker] Fetching git files...")
-    const startTime = Date.now()
-
+  async function loadGitignore() {
     try {
-      const gitResponse = await props.instanceClient.file.status()
-      const elapsed = Date.now() - startTime
-      console.log(`[FilePicker] Git files response received in ${elapsed}ms:`, gitResponse)
-
-      if (gitResponse?.data && gitResponse.data.length > 0) {
-        const gitFiles: FileItem[] = gitResponse.data.map((file: any) => ({
-          path: file.path,
-          added: file.added,
-          removed: file.removed,
-          isGitFile: true,
-        }))
-        console.log(`[FilePicker] Cached ${gitFiles.length} git files`)
-        setCachedGitFiles(gitFiles)
-      } else {
-        console.log("[FilePicker] Git response has no data or empty array")
+      const gitignorePath = path.join(props.workspaceFolder, ".gitignore")
+      if (fs.existsSync(gitignorePath)) {
+        const content = fs.readFileSync(gitignorePath, "utf-8")
+        const patterns = new Set(
+          content
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line && !line.startsWith("#")),
+        )
+        setGitignorePatterns(patterns)
+        console.log(`[FilePicker] Loaded ${patterns.size} gitignore patterns`)
       }
     } catch (error) {
-      const elapsed = Date.now() - startTime
-      console.warn(`[FilePicker] Git files not available after ${elapsed}ms:`, error)
+      console.warn("[FilePicker] Could not load .gitignore:", error)
     }
+  }
+
+  function isIgnored(relativePath: string): boolean {
+    const patterns = gitignorePatterns()
+    for (const pattern of patterns) {
+      if (pattern.endsWith("/") && relativePath.startsWith(pattern)) {
+        return true
+      }
+      if (relativePath === pattern || relativePath.startsWith(pattern + "/")) {
+        return true
+      }
+      if (pattern.includes("*")) {
+        const regex = new RegExp("^" + pattern.replace(/\*/g, ".*") + "$")
+        if (regex.test(relativePath)) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  async function scanDirectory(dirPath: string, baseDir: string): Promise<FileItem[]> {
+    const results: FileItem[] = []
+
+    try {
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name)
+        const relativePath = path.relative(baseDir, fullPath)
+
+        if (entry.name === ".git" || entry.name === "node_modules") {
+          continue
+        }
+
+        if (isIgnored(relativePath)) {
+          continue
+        }
+
+        if (entry.isDirectory()) {
+          results.push({
+            path: relativePath + "/",
+            isGitFile: false,
+          })
+          const subFiles = await scanDirectory(fullPath, baseDir)
+          results.push(...subFiles)
+        } else {
+          results.push({
+            path: relativePath,
+            isGitFile: false,
+          })
+        }
+      }
+    } catch (error) {
+      console.warn(`[FilePicker] Error scanning ${dirPath}:`, error)
+    }
+
+    return results
   }
 
   async function fetchFiles(searchQuery: string) {
     console.log(`[FilePicker] Fetching files for query: "${searchQuery}"`)
     setLoading(true)
-    const startTime = Date.now()
 
     try {
-      const gitFiles = cachedGitFiles()
-      console.log(`[FilePicker] Using ${gitFiles.length} cached git files`)
+      if (allFiles().length === 0) {
+        await loadGitignore()
+        console.log(`[FilePicker] Scanning workspace: ${props.workspaceFolder}`)
+        const scannedFiles = await scanDirectory(props.workspaceFolder, props.workspaceFolder)
+        setAllFiles(scannedFiles)
+        console.log(`[FilePicker] Found ${scannedFiles.length} files`)
+      }
 
-      const filteredGitFiles = searchQuery.trim()
-        ? gitFiles.filter((f) => f.path.toLowerCase().includes(searchQuery.toLowerCase()))
-        : gitFiles
+      const filteredFiles = searchQuery.trim()
+        ? allFiles().filter((f) => f.path.toLowerCase().includes(searchQuery.toLowerCase()))
+        : allFiles()
 
-      console.log(`[FilePicker] Showing ${filteredGitFiles.length} git files`)
-      setFiles(filteredGitFiles)
+      console.log(`[FilePicker] Showing ${filteredFiles.length} files`)
+      setFiles(filteredFiles)
       setSelectedIndex(0)
     } catch (error) {
-      const elapsed = Date.now() - startTime
-      console.error(`[FilePicker] Failed to search files after ${elapsed}ms:`, error)
+      console.error(`[FilePicker] Failed to fetch files:`, error)
       setFiles([])
     } finally {
       setLoading(false)
@@ -94,15 +139,13 @@ const FilePicker: Component<FilePickerProps> = (props) => {
 
   createEffect(() => {
     console.log(
-      `[FilePicker] Effect triggered - open: ${props.open}, query: "${props.searchQuery}", gitFilesFetched: ${gitFilesFetched}, isInitialized: ${isInitialized()}`,
+      `[FilePicker] Effect triggered - open: ${props.open}, query: "${props.searchQuery}", isInitialized: ${isInitialized()}`,
     )
 
     if (props.open && !isInitialized()) {
       setIsInitialized(true)
-      console.log("[FilePicker] First open - fetching git files and initial files")
-      fetchGitFiles().then(() => {
-        fetchFiles(props.searchQuery)
-      })
+      console.log("[FilePicker] First open - fetching files")
+      fetchFiles(props.searchQuery)
       lastQuery = props.searchQuery
       return
     }

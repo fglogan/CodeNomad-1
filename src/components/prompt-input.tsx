@@ -450,6 +450,7 @@ export default function PromptInput(props: PromptInputProps) {
             instanceClient={instance()!.client}
             searchQuery={fileSearchQuery()}
             textareaRef={textareaRef}
+            workspaceFolder={props.instanceFolder}
           />
         </Show>
 
