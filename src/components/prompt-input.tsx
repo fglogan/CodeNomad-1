@@ -53,8 +53,16 @@ export default function PromptInput(props: PromptInputProps) {
       let newPrompt = currentPrompt
 
       if (attachment.source.type === "file") {
-        const filename = attachment.filename
-        newPrompt = currentPrompt.replace(`@${filename}`, "").replace(/\s+/g, " ").trim()
+        if (attachment.mediaType.startsWith("image/")) {
+          const imageMatch = attachment.display.match(/\[Image #(\d+)\]/)
+          if (imageMatch) {
+            const placeholder = `[Image #${imageMatch[1]}]`
+            newPrompt = currentPrompt.replace(placeholder, "").replace(/\s+/g, " ").trim()
+          }
+        } else {
+          const filename = attachment.filename
+          newPrompt = currentPrompt.replace(`@${filename}`, "").replace(/\s+/g, " ").trim()
+        }
       } else if (attachment.source.type === "agent") {
         const agentName = attachment.filename
         newPrompt = currentPrompt.replace(`@${agentName}`, "").replace(/\s+/g, " ").trim()
@@ -106,6 +114,24 @@ export default function PromptInput(props: PromptInputProps) {
           )
           attachment.url = `data:image/png;base64,${base64Data}`
           addAttachment(props.instanceId, props.sessionId, attachment)
+
+          const textarea = textareaRef
+          if (textarea) {
+            const start = textarea.selectionStart
+            const end = textarea.selectionEnd
+            const currentText = prompt()
+            const placeholder = `[Image #${count}]`
+            const newText = currentText.substring(0, start) + placeholder + currentText.substring(end)
+            setPrompt(newText)
+
+            setTimeout(() => {
+              const newCursorPos = start + placeholder.length
+              textarea.setSelectionRange(newCursorPos, newCursorPos)
+              textarea.style.height = "auto"
+              textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px"
+              textarea.focus()
+            }, 0)
+          }
         }
         reader.readAsDataURL(blob)
 
@@ -222,6 +248,49 @@ export default function PromptInput(props: PromptInputProps) {
           const currentAttachments = attachments()
           const attachment = currentAttachments.find(
             (a) => a.source.type === "text" && a.display.includes(`pasted #${pasteNumber}`),
+          )
+
+          if (attachment) {
+            removeAttachment(props.instanceId, props.sessionId, attachment.id)
+          }
+
+          const newText = text.substring(0, placeholderStart) + text.substring(placeholderEnd)
+          setPrompt(newText)
+
+          setTimeout(() => {
+            textarea.setSelectionRange(placeholderStart, placeholderStart)
+            textarea.style.height = "auto"
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px"
+          }, 0)
+
+          return
+        }
+      }
+
+      const imagePlaceholderRegex = /\[Image #(\d+)\]/g
+      let imageMatch
+
+      while ((imageMatch = imagePlaceholderRegex.exec(text)) !== null) {
+        const placeholderStart = imageMatch.index
+        const placeholderEnd = imageMatch.index + imageMatch[0].length
+        const imageNumber = imageMatch[1]
+
+        const isDeletingFromEnd = e.key === "Backspace" && cursorPos === placeholderEnd
+        const isDeletingFromStart = e.key === "Delete" && cursorPos === placeholderStart
+        const isSelected =
+          textarea.selectionStart <= placeholderStart &&
+          textarea.selectionEnd >= placeholderEnd &&
+          textarea.selectionStart !== textarea.selectionEnd
+
+        if (isDeletingFromEnd || isDeletingFromStart || isSelected) {
+          e.preventDefault()
+
+          const currentAttachments = attachments()
+          const attachment = currentAttachments.find(
+            (a) =>
+              a.source.type === "file" &&
+              a.mediaType.startsWith("image/") &&
+              a.display.includes(`Image #${imageNumber}`),
           )
 
           if (attachment) {
