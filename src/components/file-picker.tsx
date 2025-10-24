@@ -123,8 +123,9 @@ const FilePicker: Component<FilePickerProps> = (props) => {
     if (props.open && !isInitialized()) {
       setIsInitialized(true)
       console.log("[FilePicker] First open - fetching git files and initial files")
-      fetchGitFiles()
-      fetchFiles(props.searchQuery)
+      fetchGitFiles().then(() => {
+        fetchFiles(props.searchQuery)
+      })
       lastQuery = props.searchQuery
       return
     }
