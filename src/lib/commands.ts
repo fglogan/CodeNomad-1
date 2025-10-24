@@ -8,7 +8,7 @@ export interface KeyboardShortcut {
 
 export interface Command {
   id: string
-  label: string
+  label: string | (() => string)
   description: string
   keywords?: string[]
   shortcut?: KeyboardShortcut
@@ -47,7 +47,8 @@ export function createCommandRegistry() {
 
     const lowerQuery = query.toLowerCase()
     return getAll().filter((cmd) => {
-      const labelMatch = cmd.label.toLowerCase().includes(lowerQuery)
+      const label = typeof cmd.label === "function" ? cmd.label() : cmd.label
+      const labelMatch = label.toLowerCase().includes(lowerQuery)
       const descMatch = cmd.description.toLowerCase().includes(lowerQuery)
       const keywordMatch = cmd.keywords?.some((k) => k.toLowerCase().includes(lowerQuery))
       return labelMatch || descMatch || keywordMatch

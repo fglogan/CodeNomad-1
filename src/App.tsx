@@ -13,6 +13,7 @@ import { initMarkdown } from "./lib/markdown"
 import { createCommandRegistry } from "./lib/commands"
 import type { Command } from "./lib/commands"
 import { hasInstances, isSelectingFolder, setIsSelectingFolder, setHasInstances } from "./stores/ui"
+import { toggleShowThinkingBlocks, preferences } from "./stores/preferences"
 import {
   createInstance,
   instances,
@@ -588,13 +589,11 @@ const App: Component = () => {
 
     commandRegistry.register({
       id: "thinking",
-      label: "Toggle Thinking Blocks",
+      label: () => `${preferences().showThinkingBlocks ? "Hide" : "Show"} Thinking Blocks`,
       description: "Show/hide AI thinking process",
       category: "System",
       keywords: ["/thinking", "toggle", "show", "hide"],
-      action: () => {
-        console.log("Toggle thinking blocks (not implemented)")
-      },
+      action: toggleShowThinkingBlocks,
     })
 
     commandRegistry.register({

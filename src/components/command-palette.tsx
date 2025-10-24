@@ -34,7 +34,8 @@ const CommandPalette: Component<CommandPaletteProps> = (props) => {
     if (!q) return props.commands
 
     return props.commands.filter((cmd) => {
-      const labelMatch = cmd.label.toLowerCase().includes(q)
+      const label = typeof cmd.label === "function" ? cmd.label() : cmd.label
+      const labelMatch = label.toLowerCase().includes(q)
       const descMatch = cmd.description.toLowerCase().includes(q)
       const keywordMatch = cmd.keywords?.some((k) => k.toLowerCase().includes(q))
       const categoryMatch = cmd.category?.toLowerCase().includes(q)
@@ -190,7 +191,9 @@ const CommandPalette: Component<CommandPaletteProps> = (props) => {
                                 onMouseEnter={() => setSelectedIndex(commandIndex)}
                               >
                                 <div class="flex-1 min-w-0">
-                                  <div class="font-medium text-gray-900 dark:text-gray-100">{command.label}</div>
+                                  <div class="font-medium text-gray-900 dark:text-gray-100">
+                                    {typeof command.label === "function" ? command.label() : command.label}
+                                  </div>
                                   <div class="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
                                     {command.description}
                                   </div>

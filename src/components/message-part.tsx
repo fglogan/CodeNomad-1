@@ -3,6 +3,7 @@ import ToolCall from "./tool-call"
 import { isItemExpanded, toggleItemExpanded } from "../stores/tool-call-state"
 import { Markdown } from "./markdown"
 import { useTheme } from "../lib/theme"
+import { preferences } from "../stores/preferences"
 
 interface MessagePartProps {
   part: any
@@ -38,19 +39,21 @@ export default function MessagePart(props: MessagePartProps) {
       </Match>
 
       <Match when={partType() === "reasoning"}>
-        <div class="message-reasoning">
-          <div class="reasoning-container">
-            <div class="reasoning-header" onClick={handleReasoningClick}>
-              <span class="reasoning-icon">{isReasoningExpanded() ? "▼" : "▶"}</span>
-              <span class="reasoning-label">Reasoning</span>
-            </div>
-            <Show when={isReasoningExpanded()}>
-              <div class="message-text mt-2">
-                <Markdown content={props.part.text || ""} isDark={isDark()} />
+        <Show when={preferences().showThinkingBlocks}>
+          <div class="message-reasoning">
+            <div class="reasoning-container">
+              <div class="reasoning-header" onClick={handleReasoningClick}>
+                <span class="reasoning-icon">{isReasoningExpanded() ? "▼" : "▶"}</span>
+                <span class="reasoning-label">Reasoning</span>
               </div>
-            </Show>
+              <Show when={isReasoningExpanded()}>
+                <div class="message-text mt-2">
+                  <Markdown content={props.part.text || ""} isDark={isDark()} />
+                </div>
+              </Show>
+            </div>
           </div>
-        </div>
+        </Show>
       </Match>
     </Switch>
   )

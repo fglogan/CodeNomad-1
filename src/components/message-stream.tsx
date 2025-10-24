@@ -4,6 +4,7 @@ import MessageItem from "./message-item"
 import ToolCall from "./tool-call"
 import { sseManager } from "../lib/sse-manager"
 import Kbd from "./kbd"
+import { preferences } from "../stores/preferences"
 
 interface MessageStreamProps {
   instanceId: string
@@ -72,7 +73,7 @@ export default function MessageStream(props: MessageStreamProps) {
 
       const textParts = message.parts.filter((p) => p.type === "text" && !p.synthetic)
       const toolParts = message.parts.filter((p) => p.type === "tool")
-      const reasoningParts = message.parts.filter((p) => p.type === "reasoning")
+      const reasoningParts = preferences().showThinkingBlocks ? message.parts.filter((p) => p.type === "reasoning") : []
 
       const isQueued = message.type === "user" && message.id > lastAssistantMessageId
 
