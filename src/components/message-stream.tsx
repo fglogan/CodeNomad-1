@@ -5,7 +5,7 @@ import ToolCall from "./tool-call"
 import { sseManager } from "../lib/sse-manager"
 import Kbd from "./kbd"
 import { preferences } from "../stores/preferences"
-import { providers } from "../stores/sessions"
+import { providers, sessionInfoByInstance } from "../stores/sessions"
 
 // Calculate session tokens and cost from messagesInfo (matches TUI logic)
 function calculateSessionInfo(messagesInfo?: Map<string, any>, instanceId?: string) {
@@ -133,6 +133,32 @@ export default function MessageStream(props: MessageStreamProps) {
 
   const connectionStatus = () => sseManager.getStatus(props.instanceId)
 
+  const sessionInfo = createMemo(() => {
+    return (
+      sessionInfoByInstance().get(props.instanceId) || {
+        tokens: 0,
+        cost: 0,
+        contextWindow: 0,
+        isSubscriptionModel: false,
+      }
+    )
+  })
+
+  const formattedSessionInfo = createMemo(() => {
+    const sessionInfo = sessionInfoByInstance().get(props.instanceId) || {
+      tokens: 0,
+      cost: 0,
+      contextWindow: 0,
+      isSubscriptionModel: false,
+    }
+    return formatSessionInfo(
+      sessionInfo.tokens,
+      sessionInfo.cost,
+      sessionInfo.contextWindow,
+      sessionInfo.isSubscriptionModel,
+    )
+  })
+
   function scrollToBottom() {
     if (containerRef) {
       containerRef.scrollTop = containerRef.scrollHeight
@@ -212,20 +238,7 @@ export default function MessageStream(props: MessageStreamProps) {
     <div class="message-stream-container">
       <div class="connection-status">
         <div class="flex items-center gap-2 text-sm font-medium text-gray-700">
-          <span>
-            {(() => {
-              const sessionInfo = calculateSessionInfo(props.messagesInfo, props.instanceId)
-              console.log("[MessageStream] sessionInfo:", sessionInfo)
-              const result = formatSessionInfo(
-                sessionInfo.tokens,
-                sessionInfo.cost,
-                sessionInfo.contextWindow,
-                sessionInfo.isSubscriptionModel,
-              )
-              console.log("[MessageStream] formatted result:", result)
-              return result
-            })()}
-          </span>
+          <span>{formattedSessionInfo()}</span>
         </div>
         <div class="flex-1" />
         <div class="flex items-center gap-2 text-sm font-medium text-gray-700">

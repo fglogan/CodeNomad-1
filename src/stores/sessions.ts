@@ -4,6 +4,13 @@ import type { Message } from "../types/message"
 import { instances } from "./instances"
 import { sseManager } from "../lib/sse-manager"
 
+interface SessionInfo {
+  tokens: number
+  cost: number
+  contextWindow: number
+  isSubscriptionModel: boolean
+}
+
 const [sessions, setSessions] = createSignal<Map<string, Map<string, Session>>>(new Map())
 const [activeSessionId, setActiveSessionId] = createSignal<Map<string, string>>(new Map())
 const [activeParentSessionId, setActiveParentSessionId] = createSignal<Map<string, string>>(new Map())
@@ -18,6 +25,7 @@ const [loading, setLoading] = createSignal({
 })
 
 const [messagesLoaded, setMessagesLoaded] = createSignal<Map<string, Set<string>>>(new Map())
+const [sessionInfoByInstance, setSessionInfoByInstance] = createSignal<Map<string, SessionInfo>>(new Map())
 
 async function fetchSessions(instanceId: string): Promise<void> {
   const instance = instances().get(instanceId)
@@ -125,6 +133,83 @@ async function getDefaultModel(
   return { providerId: "", modelId: "" }
 }
 
+function updateSessionInfo(instanceId: string) {
+  const instanceSessions = sessions().get(instanceId)
+  if (!instanceSessions) return
+
+  let totalTokens = 0
+  let totalCost = 0
+  let contextWindow = 0
+  let isSubscriptionModel = false
+  let modelID = ""
+  let providerID = ""
+
+  // Calculate from last assistant message in each session (like original calculateSessionInfo)
+  for (const session of instanceSessions.values()) {
+    if (session.messagesInfo.size === 0) continue
+
+    // Go backwards through messagesInfo to find the last relevant assistant message (like TUI)
+    const messageArray = Array.from(session.messagesInfo.values()).reverse()
+
+    for (const info of messageArray) {
+      if (info.role === "assistant" && info.tokens) {
+        const usage = info.tokens
+
+        if (usage.output > 0) {
+          if (info.summary) {
+            // If summary message, only count output tokens and stop (like TUI)
+            totalTokens = usage.output || 0
+            totalCost = info.cost || 0
+          } else {
+            // Regular message - count all token types (like TUI)
+            totalTokens =
+              (usage.input || 0) +
+              (usage.cache?.read || 0) +
+              (usage.cache?.write || 0) +
+              (usage.output || 0) +
+              (usage.reasoning || 0)
+            totalCost = info.cost || 0
+          }
+
+          // Get model info for context window and subscription check
+          modelID = info.modelID || ""
+          providerID = info.providerID || ""
+          isSubscriptionModel = totalCost === 0
+
+          break // Break after finding the last assistant message
+        }
+      }
+    }
+  }
+
+  // Get context window from providers
+  if (modelID && providerID) {
+    const instanceProviders = providers().get(instanceId) || []
+    const provider = instanceProviders.find((p) => p.id === providerID)
+    if (provider) {
+      const model = provider.models.find((m) => m.id === modelID)
+      if (model?.limit?.context) {
+        contextWindow = model.limit.context
+      }
+      // Check if it's a subscription model (cost is 0 for both input and output)
+      if (model?.cost?.input === 0 && model?.cost?.output === 0) {
+        isSubscriptionModel = true
+      }
+    }
+  }
+
+  setSessionInfoByInstance((prev) => {
+    const next = new Map(prev)
+    next.set(instanceId, {
+      tokens: totalTokens,
+      cost: totalCost,
+      contextWindow,
+      isSubscriptionModel,
+    })
+    return next
+  })
+}
+
 async function createSession(instanceId: string, agent?: string): Promise<Session> {
   const instance = instances().get(instanceId)
   if (!instance || !instance.client) {
@@ -181,6 +266,7 @@ async function createSession(instanceId: string, agent?: string): Promise<Sessio
       return next
     })
 
+    updateSessionInfo(instanceId)
     return session
   } catch (error) {
     console.error("Failed to create session:", error)
@@ -507,6 +593,8 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
       return next
     })
   }
+
+  updateSessionInfo(instanceId)
 }
 
 function handleMessageUpdate(instanceId: string, event: any): void {
@@ -554,6 +642,8 @@ function handleMessageUpdate(instanceId: string, event: any): void {
       next.set(instanceId, instanceSessions)
       return next
     })
+
+    updateSessionInfo(instanceId)
   } else if (event.type === "message.updated") {
     const info = event.properties?.info
     if (!info) return
@@ -606,6 +696,8 @@ function handleMessageUpdate(instanceId: string, event: any): void {
       next.set(instanceId, instanceSessions)
       return next
     })
+
+    updateSessionInfo(instanceId)
   }
 }
 
@@ -907,6 +999,7 @@ export {
   agents,
   providers,
   loading,
+  sessionInfoByInstance,
   fetchSessions,
   createSession,
   deleteSession,
