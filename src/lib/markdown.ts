@@ -1,31 +1,41 @@
 import { marked } from "marked"
 import { createHighlighter, type Highlighter, bundledLanguages } from "shiki/bundle/full"
 
-const CORE_LANGUAGES = [
-  "bash",
-  "shell",
-  "sh",
-  "javascript",
-  "typescript",
-  "tsx",
-  "jsx",
-  "json",
-  "yaml",
-  "yml",
-  "markdown",
-  "md",
-  "html",
-  "css",
-  "scss",
-  "python",
-  "go",
-  "rust",
-]
-
 let highlighter: Highlighter | null = null
 let highlighterPromise: Promise<Highlighter> | null = null
 let currentTheme: "light" | "dark" = "light"
 let isInitialized = false
+
+// Track loaded languages and queue for on-demand loading
+const loadedLanguages = new Set<string>()
+const queuedLanguages = new Set<string>()
+const languageLoadQueue: Array<() => Promise<void>> = []
+let isQueueRunning = false
+
+// Pub/sub mechanism for language loading notifications
+const languageListeners: Array<() => void> = []
+
+export function onLanguagesLoaded(callback: () => void): () => void {
+  languageListeners.push(callback)
+
+  // Return cleanup function
+  return () => {
+    const index = languageListeners.indexOf(callback)
+    if (index > -1) {
+      languageListeners.splice(index, 1)
+    }
+  }
+}
+
+function triggerLanguageListeners() {
+  for (const listener of languageListeners) {
+    try {
+      listener()
+    } catch (error) {
+      console.error("Error in language listener:", error)
+    }
+  }
+}
 
 async function getOrCreateHighlighter() {
   if (highlighter) {
@@ -36,16 +46,100 @@ async function getOrCreateHighlighter() {
     return highlighterPromise
   }
 
-  const filteredLangs = CORE_LANGUAGES.filter((lang) => lang in bundledLanguages)
-
+  // Create highlighter with no preloaded languages
   highlighterPromise = createHighlighter({
     themes: ["github-light", "github-dark"],
-    langs: filteredLangs,
+    langs: [],
   })
 
   highlighter = await highlighterPromise
   highlighterPromise = null
   return highlighter
+}
+
+function normalizeLanguageToken(token: string): string {
+  return token.trim().toLowerCase()
+}
+
+function resolveLanguage(token: string): { canonical: string | null; raw: string } {
+  const normalized = normalizeLanguageToken(token)
+
+  // Check if it's a direct key match
+  if (normalized in bundledLanguages) {
+    return { canonical: normalized, raw: normalized }
+  }
+
+  // Check aliases
+  for (const [key, lang] of Object.entries(bundledLanguages)) {
+    if (lang.aliases?.includes(normalized)) {
+      return { canonical: key, raw: normalized }
+    }
+  }
+
+  return { canonical: null, raw: normalized }
+}
+
+async function ensureLanguages(content: string) {
+  // Parse code fences to extract language tokens
+  const codeBlockRegex = /```(\w*[#.\-+\w]*)/g
+  const foundLanguages = new Set<string>()
+  let match
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    const langToken = match[1]
+    if (langToken) {
+      foundLanguages.add(langToken)
+    }
+  }
+
+  // Queue language loading tasks
+  for (const token of foundLanguages) {
+    const { canonical, raw } = resolveLanguage(token)
+    const langKey = canonical || raw
+
+    // Skip if already loaded or queued
+    if (loadedLanguages.has(langKey) || queuedLanguages.has(langKey)) {
+      continue
+    }
+
+    queuedLanguages.add(langKey)
+
+    // Queue the language loading task
+    languageLoadQueue.push(async () => {
+      try {
+        const h = await getOrCreateHighlighter()
+        await h.loadLanguage(langKey)
+        loadedLanguages.add(langKey)
+        triggerLanguageListeners()
+      } catch {
+        // Quietly ignore errors
+      } finally {
+        queuedLanguages.delete(langKey)
+      }
+    })
+  }
+
+  // Trigger queue runner if not already running
+  if (languageLoadQueue.length > 0 && !isQueueRunning) {
+    runLanguageLoadQueue()
+  }
+}
+
+async function runLanguageLoadQueue() {
+  if (isQueueRunning || languageLoadQueue.length === 0) {
+    return
+  }
+
+  isQueueRunning = true
+
+  while (languageLoadQueue.length > 0) {
+    const task = languageLoadQueue.shift()
+    if (task) {
+      await task()
+    }
+  }
+
+  isQueueRunning = false
 }
 
 function setupRenderer(isDark: boolean) {
@@ -81,15 +175,24 @@ function setupRenderer(isDark: boolean) {
       return `<div class="markdown-code-block" data-language="${escapedLang}" data-code="${encodedCode}">${header}<pre><code>${escapeHtml(code)}</code></pre></div>`
     }
 
-    try {
-      const html = highlighter.codeToHtml(code, {
-        lang,
-        theme: isDark ? "github-dark" : "github-light",
-      })
-      return `<div class="markdown-code-block" data-language="${escapedLang}" data-code="${encodedCode}">${header}${html}</div>`
-    } catch {
-      return `<div class="markdown-code-block" data-language="${escapedLang}" data-code="${encodedCode}">${header}<pre><code class="language-${escapedLang}">${escapeHtml(code)}</code></pre></div>`
+    // Resolve language and check if it's loaded
+    const { canonical, raw } = resolveLanguage(lang)
+    const langKey = canonical || raw
+
+    // Use highlighting if language is loaded, otherwise fall back to plain code
+    if (loadedLanguages.has(langKey)) {
+      try {
+        const html = highlighter.codeToHtml(code, {
+          lang: langKey,
+          theme: currentTheme === "dark" ? "github-dark" : "github-light",
+        })
+        return `<div class="markdown-code-block" data-language="${escapedLang}" data-code="${encodedCode}">${header}${html}</div>`
+      } catch {
+        // Fall through to plain code if highlighting fails
+      }
     }
+
+    return `<div class="markdown-code-block" data-language="${escapedLang}" data-code="${encodedCode}">${header}<pre><code class="language-${escapedLang}">${escapeHtml(code)}</code></pre></div>`
   }
 
   renderer.link = (href: string, title: string | null | undefined, text: string) => {
@@ -118,6 +221,11 @@ export async function renderMarkdown(content: string): Promise<string> {
   if (!isInitialized) {
     await initMarkdown(currentTheme === "dark")
   }
+
+  // Queue language loading but don't wait for it to complete
+  await ensureLanguages(content)
+
+  // Proceed to parse immediately - highlighting will be available on next render
   return marked.parse(content) as Promise<string>
 }
 

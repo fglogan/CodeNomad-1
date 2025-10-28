@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onMount, onCleanup } from "solid-js"
-import { renderMarkdown } from "../lib/markdown"
+import { renderMarkdown, onLanguagesLoaded } from "../lib/markdown"
 import type { TextPart } from "../types/message"
 
 interface MarkdownProps {
@@ -16,12 +16,12 @@ export function Markdown(props: MarkdownProps) {
     const part = props.part
     const text = part.text || ""
 
+    latestRequestedText = text
+
     if (part.renderCache && part.renderCache.text === text) {
       setHtml(part.renderCache.html)
       return
     }
-
-    latestRequestedText = text
 
     try {
       const rendered = await renderMarkdown(text)
@@ -62,8 +62,29 @@ export function Markdown(props: MarkdownProps) {
 
     containerRef?.addEventListener("click", handleClick)
 
+    // Register listener for language loading completion
+    const cleanupLanguageListener = onLanguagesLoaded(async () => {
+      const part = props.part
+      const text = part.text || ""
+
+      if (latestRequestedText !== text) {
+        return
+      }
+
+      try {
+        const rendered = await renderMarkdown(text)
+        if (latestRequestedText === text) {
+          setHtml(rendered)
+          part.renderCache = { text, html: rendered }
+        }
+      } catch (error) {
+        console.error("Failed to re-render markdown after language load:", error)
+      }
+    })
+
     onCleanup(() => {
       containerRef?.removeEventListener("click", handleClick)
+      cleanupLanguageListener()
     })
   })
 

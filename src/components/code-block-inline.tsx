@@ -3,6 +3,8 @@ import type { Highlighter } from "shiki/bundle/full"
 import { useTheme } from "../lib/theme"
 import { getSharedHighlighter, escapeHtml } from "../lib/markdown"
 
+const inlineLoadedLanguages = new Set<string>()
+
 interface CodeBlockInlineProps {
   code: string
   language?: string
@@ -18,7 +20,7 @@ export function CodeBlockInline(props: CodeBlockInlineProps) {
   onMount(async () => {
     highlighter = await getSharedHighlighter()
     setReady(true)
-    updateHighlight()
+    await updateHighlight()
   })
 
   createEffect(() => {
@@ -26,11 +28,11 @@ export function CodeBlockInline(props: CodeBlockInlineProps) {
       isDark()
       props.code
       props.language
-      updateHighlight()
+      void updateHighlight()
     }
   })
 
-  const updateHighlight = () => {
+  const updateHighlight = async () => {
     if (!highlighter) return
 
     if (!props.language) {
@@ -39,6 +41,11 @@ export function CodeBlockInline(props: CodeBlockInlineProps) {
     }
 
     try {
+      if (!inlineLoadedLanguages.has(props.language)) {
+        await highlighter.loadLanguage(props.language)
+        inlineLoadedLanguages.add(props.language)
+      }
+
       const highlighted = highlighter.codeToHtml(props.code, {
         lang: props.language,
         theme: isDark() ? "github-dark" : "github-light",
