@@ -168,16 +168,20 @@ export default function MessageStream(props: MessageStreamProps) {
   }
 
   function handleScroll() {
-    if (!containerRef) return
-
-    const { scrollTop, scrollHeight, clientHeight } = containerRef
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
-
-    setAutoScroll(isAtBottom)
-    setShowScrollButton(!isAtBottom)
+    // Scroll handling temporarily disabled during testing
+    // if (!containerRef) return
+    //
+    // const { scrollTop, scrollHeight, clientHeight } = containerRef
+    // const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
+    //
+    // setAutoScroll(isAtBottom)
+    // setShowScrollButton(!isAtBottom)
   }
 
   const displayItems = createMemo(() => {
+    // Ensure memo reacts to preference changes
+    preferences().showThinkingBlocks
+
     const items: DisplayItem[] = []
 
     let lastAssistantIndex = -1
@@ -197,9 +201,11 @@ export default function MessageStream(props: MessageStreamProps) {
         break
       }
 
-      const textParts = message.parts.filter((p) => p.type === "text" && !p.synthetic)
-      const toolParts = message.parts.filter((p) => p.type === "tool")
-      const reasoningParts = preferences().showThinkingBlocks ? message.parts.filter((p) => p.type === "reasoning") : []
+      // Use precomputed displayParts, fallback to empty arrays if not available
+      const displayParts = message.displayParts || { text: [], tool: [], reasoning: [] }
+      const textParts = displayParts.text
+      const toolParts = displayParts.tool
+      const reasoningParts = displayParts.reasoning
 
       const isQueued = message.type === "user" && (lastAssistantIndex === -1 || index > lastAssistantIndex)
 
@@ -229,10 +235,11 @@ export default function MessageStream(props: MessageStreamProps) {
 
   const itemsLength = () => displayItems().length
   createEffect(() => {
+    // Scroll handling temporarily disabled during testing
     itemsLength()
-    if (autoScroll()) {
-      setTimeout(scrollToBottom, 0)
-    }
+    // if (autoScroll()) {
+    //   setTimeout(scrollToBottom, 0)
+    // }
   })
 
   return (

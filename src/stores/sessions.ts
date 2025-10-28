@@ -1,8 +1,9 @@
 import { createSignal } from "solid-js"
 import type { Session, Agent, Provider } from "../types/session"
-import type { Message } from "../types/message"
+import type { Message, MessageDisplayParts } from "../types/message"
 import { instances } from "./instances"
 import { sseManager } from "../lib/sse-manager"
+import { preferences } from "./preferences"
 
 interface SessionInfo {
   tokens: number
@@ -79,6 +80,24 @@ function clearSessionIndex(instanceId: string, sessionId: string) {
 
 function removeSessionIndexes(instanceId: string) {
   sessionIndexes.delete(instanceId)
+}
+
+function computeDisplayParts(message: Message, showThinking: boolean): MessageDisplayParts {
+  const text: any[] = []
+  const tool: any[] = []
+  const reasoning: any[] = []
+
+  for (const part of message.parts) {
+    if (part.type === "text" && !part.synthetic) {
+      text.push(part)
+    } else if (part.type === "tool") {
+      tool.push(part)
+    } else if (part.type === "reasoning" && showThinking) {
+      reasoning.push(part)
+    }
+  }
+
+  return { text, tool, reasoning }
 }
 
 function withSession(instanceId: string, sessionId: string, updater: (session: Session) => void) {
@@ -684,7 +703,7 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
 
       messagesInfo.set(messageId, info)
 
-      return {
+      const message: Message = {
         id: messageId,
         sessionId,
         type: role === "user" ? "user" : "assistant",
@@ -692,6 +711,10 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
         timestamp: info.time?.created || Date.now(),
         status: "complete" as const,
       }
+
+      message.displayParts = computeDisplayParts(message, preferences().showThinkingBlocks)
+
+      return message
     })
 
     let agentName = ""
@@ -794,7 +817,7 @@ function handleMessageUpdate(instanceId: string, event: any): void {
 
     if (messageIndex === undefined) {
       // Create new message
-      const newMessage = {
+      const newMessage: Message = {
         id: part.messageID,
         sessionId: part.sessionID,
         type: "assistant" as const,
@@ -802,6 +825,8 @@ function handleMessageUpdate(instanceId: string, event: any): void {
         timestamp: Date.now(),
         status: "streaming" as const,
       }
+
+      newMessage.displayParts = computeDisplayParts(newMessage, preferences().showThinkingBlocks)
 
       let insertIndex = session.messages.length
       for (let i = session.messages.length - 1; i >= 0; i--) {
@@ -853,6 +878,8 @@ function handleMessageUpdate(instanceId: string, event: any): void {
       message.id = replacedTemp ? part.messageID : message.id
       message.status = message.status === "sending" ? "streaming" : message.status
       message.parts = baseParts
+
+      message.displayParts = computeDisplayParts(message, preferences().showThinkingBlocks)
 
       // Update message index if ID changed
       if (oldId !== message.id) {
@@ -937,7 +964,7 @@ function handleMessageUpdate(instanceId: string, event: any): void {
         }
       } else {
         // Append new message
-        const newMessage = {
+        const newMessage: Message = {
           id: info.id,
           sessionId: info.sessionID,
           type: (info.role === "user" ? "user" : "assistant") as "user" | "assistant",
@@ -945,6 +972,8 @@ function handleMessageUpdate(instanceId: string, event: any): void {
           timestamp: info.time?.created || Date.now(),
           status: "complete" as const,
         }
+
+        newMessage.displayParts = computeDisplayParts(newMessage, preferences().showThinkingBlocks)
 
         let insertIndex = session.messages.length
         for (let i = session.messages.length - 1; i >= 0; i--) {
@@ -1082,6 +1111,8 @@ async function sendMessage(
     timestamp: Date.now(),
     status: "sending",
   }
+
+  optimisticMessage.displayParts = computeDisplayParts(optimisticMessage, preferences().showThinkingBlocks)
 
   withSession(instanceId, sessionId, (session) => {
     session.messages.push(optimisticMessage)
