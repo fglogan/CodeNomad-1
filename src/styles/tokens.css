@@ -1,7 +1,73 @@
 :root {
-  /* TODO: surface, text, accent, status tokens */
+  /* Surface tokens */
+  --surface-base: #ffffff;
+  --surface-secondary: #f5f5f5;
+  --surface-muted: #f8f9fa;
+  --surface-code: #f8f8f8;
+  --surface-hover: #e0e0e0;
+  
+  /* Border tokens */
+  --border-base: #e0e0e0;
+  --border-secondary: #e0e0e0;
+  --border-muted: #e0e0e0;
+  
+  /* Text tokens */
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-muted: #666666;
+  --text-inverted: #ffffff;
+  
+  /* Accent tokens */
+  --accent-primary: #0066ff;
+  --accent-hover: #0052cc;
+  
+  /* Status tokens */
+  --status-success: #4caf50;
+  --status-error: #f44336;
+  --status-warning: #ff9800;
+  
+  /* Message-specific tokens */
+  --message-user-bg: #f0f7ff;
+  --message-user-border: #2196f3;
+  --message-assistant-bg: #faf5ff;
+  --message-assistant-border: #9c27b0;
+  --message-tool-bg: #f8f9fa;
+  --message-tool-border: #6c757d;
 }
 
 [data-theme="dark"] {
-  /* TODO: dark-mode overrides */
+  /* Surface tokens */
+  --surface-base: #1a1a1a;
+  --surface-secondary: #2a2a2a;
+  --surface-muted: #212529;
+  --surface-code: #1a1a1a;
+  --surface-hover: #3a3a3a;
+  
+  /* Border tokens */
+  --border-base: #3a3a3a;
+  --border-secondary: #3a3a3a;
+  --border-muted: #3a3a3a;
+  
+  /* Text tokens */
+  --text-primary: #e0e0e0;
+  --text-secondary: #999999;
+  --text-muted: #999999;
+  --text-inverted: #1a1a1a;
+  
+  /* Accent tokens */
+  --accent-primary: #0080ff;
+  --accent-hover: #0066cc;
+  
+  /* Status tokens */
+  --status-success: #4caf50;
+  --status-error: #f44336;
+  --status-warning: #ff9800;
+  
+  /* Message-specific tokens */
+  --message-user-bg: #1a2332;
+  --message-user-border: #42a5f5;
+  --message-assistant-bg: #251a2e;
+  --message-assistant-border: #ba68c8;
+  --message-tool-bg: #212529;
+  --message-tool-border: #adb5bd;
 }
