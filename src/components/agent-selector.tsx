@@ -53,7 +53,7 @@ export default function AgentSelector(props: AgentSelectorProps) {
   }
 
   return (
-    <div class="flex items-center gap-2">
+    <div class="sidebar-selector">
       <Select
         value={availableAgents().find((a) => a.name === props.currentAgent)}
         onChange={handleChange}
@@ -108,7 +108,7 @@ export default function AgentSelector(props: AgentSelectorProps) {
           </Select.Content>
         </Select.Portal>
       </Select>
-      <span class="hint">
+      <span class="hint sidebar-selector-hint">
         <Kbd shortcut="cmd+shift+a" />
       </span>
     </div>

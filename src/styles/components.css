@@ -491,7 +491,7 @@ button.button-primary {
 
 /* Message stream component utilities */
 .message-stream-container {
-  @apply relative flex-1 flex flex-col overflow-hidden;
+  @apply relative flex-1 min-h-0 flex flex-col overflow-hidden;
 }
 
 .connection-status {
@@ -527,7 +527,7 @@ button.button-primary {
 }
 
 .message-stream {
-  @apply flex-1 overflow-y-auto p-4 flex flex-col gap-4;
+  @apply flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-4;
   background-color: var(--surface-base);
   color: inherit;
 }
@@ -1060,17 +1060,25 @@ button.button-primary {
 }
 
 .selector-trigger-label {
-  @apply flex flex-col items-start min-w-0;
+  @apply flex flex-col min-w-0;
+}
+
+.selector-trigger-label--stacked {
+  @apply items-start;
 }
 
 .selector-trigger-primary {
+  @apply text-sm font-medium truncate;
   color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
+}
+
+.selector-trigger-primary--align-left {
+  @apply text-left w-full;
 }
 
 .selector-trigger-secondary {
+  @apply text-xs text-left truncate;
   color: var(--text-muted);
-  font-size: 10px;
 }
 
 .selector-trigger-icon {
@@ -1622,17 +1630,69 @@ button.button-primary {
 
 /* Session view utility */
 .session-view {
-  @apply flex flex-col h-full;
+  @apply flex flex-1 min-h-0 flex-col;
   background-color: var(--surface-base);
   color: inherit;
 }
 
 /* Session list component */
 .session-list-container {
-  @apply flex flex-col h-full relative;
+  @apply flex flex-col flex-1 min-h-0 relative;
   background-color: var(--surface-secondary);
   min-width: 200px;
   max-width: 500px;
+}
+
+.session-sidebar {
+  @apply flex flex-col min-h-0;
+  background-color: var(--surface-secondary);
+}
+
+.session-sidebar-header {
+  @apply flex flex-col gap-2 w-full;
+}
+
+.session-sidebar-title {
+  color: var(--text-primary);
+}
+
+.session-sidebar-shortcuts {
+  @apply flex flex-col gap-1;
+}
+
+.session-sidebar-new {
+  @apply w-full;
+}
+
+.session-sidebar-controls {
+  @apply flex flex-col gap-3;
+  background-color: var(--surface-secondary);
+}
+
+.session-sidebar-controls > * {
+  @apply w-full;
+}
+
+.session-sidebar-controls .selector-trigger,
+.session-sidebar-controls [data-model-selector-control],
+.session-sidebar-controls .selector-trigger-label,
+.session-sidebar-controls .selector-trigger-primary {
+  @apply w-full;
+}
+
+.sidebar-selector {
+  @apply flex flex-col gap-1 w-full;
+}
+
+.sidebar-selector-hint {
+  @apply flex justify-center text-xs w-full;
+  color: var(--text-muted);
+}
+
+.session-sidebar-separator {
+  background-color: var(--border-base);
+  height: 1px;
+  width: 100%;
 }
 
 .session-resize-handle {

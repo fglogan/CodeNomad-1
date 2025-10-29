@@ -9,6 +9,9 @@ import SessionList from "./components/session-list"
 import MessageStream from "./components/message-stream"
 import PromptInput from "./components/prompt-input"
 import InfoView from "./components/info-view"
+import AgentSelector from "./components/agent-selector"
+import ModelSelector from "./components/model-selector"
+import KeyboardHint from "./components/keyboard-hint"
 import { initMarkdown } from "./lib/markdown"
 import { useTheme } from "./lib/theme"
 import { createCommandRegistry } from "./lib/commands"
@@ -78,14 +81,6 @@ const SessionView: Component<{
     await sendMessage(props.instanceId, props.sessionId, prompt, attachments)
   }
 
-  async function handleAgentChange(agent: string) {
-    await updateSessionAgent(props.instanceId, props.sessionId, agent)
-  }
-
-  async function handleModelChange(model: { providerId: string; modelId: string }) {
-    await updateSessionModel(props.instanceId, props.sessionId, model)
-  }
-
   async function handleRevert(messageId: string) {
     const instance = instances().get(props.instanceId)
     if (!instance || !instance.client) return
@@ -148,10 +143,6 @@ const SessionView: Component<{
             instanceFolder={props.instanceFolder}
             sessionId={s().id}
             onSend={handleSendMessage}
-            agent={s().agent}
-            model={s().model}
-            onAgentChange={handleAgentChange}
-            onModelChange={handleModelChange}
             escapeInDebounce={props.escapeInDebounce}
           />
         </div>
@@ -188,6 +179,29 @@ const App: Component = () => {
     if (!instance) return null
     return activeSessionId().get(instance.id) || null
   })
+
+  const activeSessionForInstance = createMemo(() => {
+    const sessionId = activeSessionIdForInstance()
+    if (!sessionId || sessionId === "info") return null
+    return activeSessions().get(sessionId) ?? null
+  })
+
+  const handleSidebarAgentChange = async (agent: string) => {
+    const instance = activeInstance()
+    const sessionId = activeSessionIdForInstance()
+    if (!instance || !sessionId || sessionId === "info") return
+    await updateSessionAgent(instance.id, sessionId, agent)
+  }
+
+  const handleSidebarModelChange = async (model: { providerId: string; modelId: string }) => {
+    const instance = activeInstance()
+    const sessionId = activeSessionIdForInstance()
+    if (!instance || !sessionId || sessionId === "info") return
+    await updateSessionModel(instance.id, sessionId, model)
+  }
+
+  const DEFAULT_SESSION_SIDEBAR_WIDTH = 280
+  const [sessionSidebarWidth, setSessionSidebarWidth] = createSignal(DEFAULT_SESSION_SIDEBAR_WIDTH)
 
   async function handleSelectFolder(folderPath?: string, binaryPath?: string) {
     setIsSelectingFolder(true)
@@ -813,24 +827,76 @@ const App: Component = () => {
               {(instance) => (
                 <>
                   <Show when={activeSessions().size > 0} fallback={<InstanceWelcomeView instance={instance()} />}>
-                    <div class="flex h-full">
-                      {/* Session List Sidebar */}
-                      <SessionList
-                        instanceId={instance().id}
-                        sessions={activeSessions()}
-                        activeSessionId={activeSessionIdForInstance()}
-                        onSelect={(id) => setActiveSession(instance().id, id)}
-                        onClose={(id) => handleCloseSession(instance().id, id)}
-                        onNew={() => handleNewSession(instance().id)}
-                      />
+                    <div class="flex flex-1 min-h-0">
+                      {/* Session Sidebar */}
+                      <div
+                        class="session-sidebar flex flex-col bg-surface-secondary"
+                        style={{ width: `${sessionSidebarWidth()}px` }}
+                      >
+                        <SessionList
+                          instanceId={instance().id}
+                          sessions={activeSessions()}
+                          activeSessionId={activeSessionIdForInstance()}
+                          onSelect={(id) => setActiveSession(instance().id, id)}
+                          onClose={(id) => handleCloseSession(instance().id, id)}
+                          onNew={() => handleNewSession(instance().id)}
+                          showHeader
+                          showFooter={false}
+                          headerContent={
+                            <div class="session-sidebar-header">
+                              <span class="session-sidebar-title text-sm font-semibold text-primary">Sessions</span>
+                              <div class="session-sidebar-shortcuts">
+                                {(() => {
+                                  const shortcut = keyboardRegistry.get("session-prev")
+                                  return shortcut ? <KeyboardHint shortcuts={[shortcut]} separator="" /> : null
+                                })()}
+                                {(() => {
+                                  const shortcut = keyboardRegistry.get("session-next")
+                                  return shortcut ? <KeyboardHint shortcuts={[shortcut]} separator="" /> : null
+                                })()}
+                              </div>
+                              <button
+                                class="session-sidebar-new inline-flex items-center justify-center gap-1.5 rounded-md border border-base px-3 py-2 text-xs font-semibold transition-colors hover:border-accent-primary hover:text-accent-primary"
+                                onClick={() => handleNewSession(instance().id)}
+                                type="button"
+                                aria-label="Create new session"
+                                title="New session (Cmd/Ctrl+Shift+N)"
+                              >
+                                <span class="leading-none">New Session</span>
+                              </button>
+                            </div>
+                          }
 
+                          onWidthChange={setSessionSidebarWidth}
+                        />
+                        <div class="session-sidebar-separator border-t border-base" />
+                        <Show when={activeSessionForInstance()}>
+                          {(activeSession) => (
+                            <div class="session-sidebar-controls px-3 py-3 border-r border-base flex flex-col gap-3">
+                              <AgentSelector
+                                instanceId={instance().id}
+                                sessionId={activeSession().id}
+                                currentAgent={activeSession().agent}
+                                onAgentChange={handleSidebarAgentChange}
+                              />
+                              <ModelSelector
+                                instanceId={instance().id}
+                                sessionId={activeSession().id}
+                                currentModel={activeSession().model}
+                                onModelChange={handleSidebarModelChange}
+                              />
+                            </div>
+                          )}
+                        </Show>
+                      </div>
                       {/* Main Content Area */}
-                      <div class="content-area flex-1 overflow-hidden flex flex-col">
+                      <div class="content-area flex-1 min-h-0 overflow-hidden flex flex-col">
                         <Show
                           when={activeSessionIdForInstance() === "info"}
                           fallback={
                             <Show
                               when={activeSessionIdForInstance()}
+                              keyed
                               fallback={
                                 <div class="flex items-center justify-center h-full">
                                   <div class="text-center text-gray-500 dark:text-gray-400">
@@ -840,13 +906,15 @@ const App: Component = () => {
                                 </div>
                               }
                             >
-                              <SessionView
-                                sessionId={activeSessionIdForInstance()!}
-                                activeSessions={activeSessions()}
-                                instanceId={activeInstance()!.id}
-                                instanceFolder={activeInstance()!.folder}
-                                escapeInDebounce={escapeInDebounce()}
-                              />
+                              {(sessionId) => (
+                                <SessionView
+                                  sessionId={sessionId}
+                                  activeSessions={activeSessions()}
+                                  instanceId={activeInstance()!.id}
+                                  instanceFolder={activeInstance()!.folder}
+                                  escapeInDebounce={escapeInDebounce()}
+                                />
+                              )}
                             </Show>
                           }
                         >

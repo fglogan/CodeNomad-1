@@ -1,6 +1,4 @@
 import { createSignal, Show, onMount, For, onCleanup } from "solid-js"
-import AgentSelector from "./agent-selector"
-import ModelSelector from "./model-selector"
 import UnifiedPicker from "./unified-picker"
 import { addToHistory, getHistory } from "../stores/message-history"
 import { getAttachments, addAttachment, clearAttachments, removeAttachment } from "../stores/attachments"
@@ -17,10 +15,6 @@ interface PromptInputProps {
   sessionId: string
   onSend: (prompt: string, attachments: Attachment[]) => Promise<void>
   disabled?: boolean
-  agent: string
-  model: { providerId: string; modelId: string }
-  onAgentChange: (agent: string) => Promise<void>
-  onModelChange: (model: { providerId: string; modelId: string }) => Promise<void>
   escapeInDebounce?: boolean
 }
 
@@ -730,37 +724,25 @@ export default function PromptInput(props: PromptInputProps) {
         </button>
       </div>
       <div class="prompt-input-hints">
-        <HintRow>
-          <Show
-            when={props.escapeInDebounce}
-            fallback={
-              <>
-                <Kbd>Enter</Kbd> to send • <Kbd>Shift+Enter</Kbd> for new line • <Kbd>@</Kbd> for files/agents •{" "}
-                <Kbd>↑↓</Kbd> for history
-                <Show when={attachments().length > 0}>
-                  <span class="ml-2 text-xs" style="color: var(--text-muted);">• {attachments().length} file(s) attached</span>
-                </Show>
-              </>
-            }
-          >
-            <span class="font-medium" style="color: var(--status-warning);">
-              Press <Kbd>Esc</Kbd> again to abort session
-            </span>
-          </Show>
-        </HintRow>
-        <div class="flex items-center gap-2">
-          <AgentSelector
-            instanceId={props.instanceId}
-            sessionId={props.sessionId}
-            currentAgent={props.agent}
-            onAgentChange={props.onAgentChange}
-          />
-          <ModelSelector
-            instanceId={props.instanceId}
-            sessionId={props.sessionId}
-            currentModel={props.model}
-            onModelChange={props.onModelChange}
-          />
+        <div class="flex justify-end">
+          <HintRow>
+            <Show
+              when={props.escapeInDebounce}
+              fallback={
+                <>
+                  <Kbd>Enter</Kbd> to send • <Kbd>Shift+Enter</Kbd> for new line • <Kbd>@</Kbd> for files/agents •{" "}
+                  <Kbd>↑↓</Kbd> for history
+                  <Show when={attachments().length > 0}>
+                    <span class="ml-2 text-xs" style="color: var(--text-muted);">• {attachments().length} file(s) attached</span>
+                  </Show>
+                </>
+              }
+            >
+              <span class="font-medium" style="color: var(--status-warning);">
+                Press <Kbd>Esc</Kbd> again to abort session
+              </span>
+            </Show>
+          </HintRow>
         </div>
       </div>
     </div>

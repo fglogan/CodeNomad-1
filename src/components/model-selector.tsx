@@ -63,7 +63,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
   })
 
   return (
-    <div class="flex items-center gap-2">
+    <div class="sidebar-selector">
       <Combobox<FlatModel>
         value={currentModelValue()}
         onChange={handleChange}
@@ -97,14 +97,14 @@ export default function ModelSelector(props: ModelSelectorProps) {
           </Combobox.Item>
         )}
       >
-        <Combobox.Control class="relative" data-model-selector-control>
+        <Combobox.Control class="relative w-full" data-model-selector-control>
           <Combobox.Input class="sr-only" data-model-selector />
           <Combobox.Trigger
             ref={triggerRef}
             class="selector-trigger"
           >
-            <div class="selector-trigger-label">
-              <span class="selector-trigger-primary">
+            <div class="selector-trigger-label selector-trigger-label--stacked">
+              <span class="selector-trigger-primary selector-trigger-primary--align-left">
                 Model: {currentModelValue()?.name ?? "None"}
               </span>
               {currentModelValue() && (
@@ -132,7 +132,7 @@ export default function ModelSelector(props: ModelSelectorProps) {
           </Combobox.Content>
         </Combobox.Portal>
       </Combobox>
-      <span class="hint">
+      <span class="hint sidebar-selector-hint">
         <Kbd shortcut="cmd+shift+m" />
       </span>
     </div>

@@ -1,4 +1,4 @@
-import { Component, For, Show, createSignal, createEffect, onCleanup, onMount, createMemo } from "solid-js"
+import { Component, For, Show, createSignal, createEffect, onCleanup, onMount, createMemo, JSX } from "solid-js"
 import type { Session } from "../types/session"
 import { MessageSquare, Info, Plus, X } from "lucide-solid"
 import KeyboardHint from "./keyboard-hint"
@@ -21,6 +21,11 @@ interface SessionListProps {
   onSelect: (sessionId: string) => void
   onClose: (sessionId: string) => void
   onNew: () => void
+  showHeader?: boolean
+  showFooter?: boolean
+  headerContent?: JSX.Element
+  footerContent?: JSX.Element
+  onWidthChange?: (width: number) => void
 }
 
 const MIN_WIDTH = 200
@@ -55,6 +60,10 @@ const SessionList: Component<SessionListProps> = (props) => {
     if (typeof window === "undefined") return
     const width = sidebarWidth()
     window.localStorage.setItem(STORAGE_KEY, width.toString())
+  })
+
+  createEffect(() => {
+    props.onWidthChange?.(sidebarWidth())
   })
 
   const clampWidth = (width: number) => Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width))
@@ -194,14 +203,18 @@ const SessionList: Component<SessionListProps> = (props) => {
         aria-hidden="true"
       />
 
-      <div class="session-list-header p-3 border-b border-base">
-        <div class="flex items-center justify-between gap-3">
-          <h3 class="text-sm font-semibold text-primary">Sessions</h3>
-          <KeyboardHint
-            shortcuts={[keyboardRegistry.get("session-prev")!, keyboardRegistry.get("session-next")!].filter(Boolean)}
-          />
+      <Show when={props.showHeader !== false}>
+        <div class="session-list-header p-3 border-b border-base">
+          {props.headerContent ?? (
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold text-primary">Sessions</h3>
+              <KeyboardHint
+                shortcuts={[keyboardRegistry.get("session-prev")!, keyboardRegistry.get("session-next")!].filter(Boolean)}
+              />
+            </div>
+          )}
         </div>
-      </div>
+      </Show>
 
       <div class="session-list flex-1 overflow-y-auto">
         <div class="session-section">
@@ -289,17 +302,21 @@ const SessionList: Component<SessionListProps> = (props) => {
         </Show>
       </div>
 
-      <div class="session-list-footer p-3 border-t border-base">
-        <button
-          class="session-new-button w-full flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm font-medium"
-          onClick={props.onNew}
-          title="New session (Cmd/Ctrl+T)"
-          aria-label="New session"
-        >
-          <Plus class="w-4 h-4" />
-          <span>New Session</span>
-        </button>
-      </div>
+      <Show when={props.showFooter !== false}>
+        <div class="session-list-footer p-3 border-t border-base">
+          {props.footerContent ?? (
+            <button
+              class="session-new-button w-full flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm font-medium"
+              onClick={props.onNew}
+              title="New session (Cmd/Ctrl+T)"
+              aria-label="New session"
+            >
+              <Plus class="w-4 h-4" />
+              <span>New Session</span>
+            </button>
+          )}
+        </div>
+      </Show>
     </div>
   )
 }
