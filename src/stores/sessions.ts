@@ -1,7 +1,9 @@
 import { createSignal } from "solid-js"
 import type { Session, Agent, Provider } from "../types/session"
 import type { Message, MessageDisplayParts } from "../types/message"
+import { partHasRenderableText } from "../types/message"
 import { instances } from "./instances"
+
 import { sseManager } from "../lib/sse-manager"
 import { preferences } from "./preferences"
 
@@ -88,11 +90,11 @@ export function computeDisplayParts(message: Message, showThinking: boolean): Me
   const reasoning: any[] = []
 
   for (const part of message.parts) {
-    if (part.type === "text" && !part.synthetic) {
+    if (part.type === "text" && !part.synthetic && partHasRenderableText(part)) {
       text.push(part)
     } else if (part.type === "tool") {
       tool.push(part)
-    } else if (part.type === "reasoning" && showThinking) {
+    } else if (part.type === "reasoning" && showThinking && partHasRenderableText(part)) {
       reasoning.push(part)
     }
   }

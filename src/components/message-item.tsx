@@ -1,6 +1,8 @@
 import { For, Show } from "solid-js"
 import type { Message } from "../types/message"
+import { partHasRenderableText } from "../types/message"
 import MessagePart from "./message-part"
+
 
 interface MessageItemProps {
   message: Message
@@ -39,7 +41,11 @@ export default function MessageItem(props: MessageItemProps) {
   }
 
   const hasContent = () => {
-    return messageParts().length > 0 || errorMessage() !== null
+    if (errorMessage() !== null) {
+      return true
+    }
+
+    return messageParts().some((part) => partHasRenderableText(part))
   }
 
   const isGenerating = () => {

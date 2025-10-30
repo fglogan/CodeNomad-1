@@ -4,6 +4,7 @@ import { isItemExpanded, toggleItemExpanded } from "../stores/tool-call-state"
 import { Markdown } from "./markdown"
 import { useTheme } from "../lib/theme"
 import { preferences } from "../stores/preferences"
+import { partHasRenderableText } from "../types/message"
 
 interface MessagePartProps {
   part: any
@@ -23,7 +24,7 @@ export default function MessagePart(props: MessagePartProps) {
   return (
     <Switch>
       <Match when={partType() === "text"}>
-        <Show when={!props.part.synthetic && props.part.text}>
+        <Show when={!props.part.synthetic && partHasRenderableText(props.part)}>
           <div class="message-text">
             <Markdown part={props.part} isDark={isDark()} />
           </div>
@@ -39,7 +40,7 @@ export default function MessagePart(props: MessagePartProps) {
       </Match>
 
       <Match when={partType() === "reasoning"}>
-        <Show when={preferences().showThinkingBlocks}>
+        <Show when={preferences().showThinkingBlocks && partHasRenderableText(props.part)}>
           <div class="message-reasoning">
             <div class="reasoning-container">
               <div class="reasoning-header" onClick={handleReasoningClick}>
