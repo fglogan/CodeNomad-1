@@ -1236,6 +1236,41 @@ function handleSessionUpdate(instanceId: string, event: any): void {
   }
 }
 
+function resolvePastedPlaceholders(prompt: string, attachments: any[] = []): string {
+  if (!prompt || !prompt.includes("[pasted #")) {
+    return prompt
+  }
+
+  if (!attachments || attachments.length === 0) {
+    return prompt
+  }
+
+  const lookup = new Map<string, string>()
+
+  for (const attachment of attachments) {
+    const source = attachment?.source
+    if (!source || source.type !== "text") continue
+    const display: string | undefined = attachment?.display
+    const value: unknown = source.value
+    if (typeof display !== "string" || typeof value !== "string") continue
+    const match = display.match(/pasted #(\d+)/)
+    if (!match) continue
+    const placeholder = `[pasted #${match[1]}]`
+    if (!lookup.has(placeholder)) {
+      lookup.set(placeholder, value)
+    }
+  }
+
+  if (lookup.size === 0) {
+    return prompt
+  }
+
+  return prompt.replace(/\[pasted #(\d+)\]/g, (fullMatch) => {
+    const replacement = lookup.get(fullMatch)
+    return typeof replacement === "string" ? replacement : fullMatch
+  })
+}
+
 async function sendMessage(
   instanceId: string,
   sessionId: string,
@@ -1256,11 +1291,13 @@ async function sendMessage(
   const messageId = createId("msg")
   const textPartId = createId("part")
 
+  const resolvedPrompt = resolvePastedPlaceholders(prompt, attachments)
+
   const optimisticParts: any[] = [
     {
       id: textPartId,
       type: "text" as const,
-      text: prompt,
+      text: resolvedPrompt,
       synthetic: true,
       renderCache: undefined,
     },
@@ -1288,7 +1325,7 @@ async function sendMessage(
     {
       id: textPartId,
       type: "text" as const,
-      text: prompt,
+      text: resolvedPrompt,
     },
   ]
 
@@ -1313,16 +1350,24 @@ async function sendMessage(
           synthetic: true,
         })
       } else if (source.type === "text") {
+        const display: string | undefined = att.display
+        const value: unknown = source.value
+        const isPastedPlaceholder = typeof display === "string" && /^pasted #\d+/.test(display)
+
+        if (isPastedPlaceholder || typeof value !== "string") {
+          continue
+        }
+
         const partId = createId("part")
         requestParts.push({
           id: partId,
           type: "text" as const,
-          text: source.value,
+          text: value,
         })
         optimisticParts.push({
           id: partId,
           type: "text" as const,
-          text: source.value,
+          text: value,
           synthetic: true,
           renderCache: undefined,
         })
