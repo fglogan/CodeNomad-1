@@ -9,41 +9,53 @@ export type ToastPayload = {
   duration?: number
 }
 
-const variantAccent: Record<ToastVariant, { badge: string; border: string; text: string }> = {
+const variantAccent: Record<
+  ToastVariant,
+  {
+    badge: string
+    container: string
+    headline: string
+    body: string
+  }
+> = {
   info: {
-    badge: "bg-blue-500",
-    border: "border-blue-500/40",
-    text: "text-blue-100",
+    badge: "bg-sky-500/40",
+    container: "bg-slate-900/95 border-slate-700 text-slate-100",
+    headline: "text-slate-50",
+    body: "text-slate-200/80",
   },
   success: {
-    badge: "bg-emerald-500",
-    border: "border-emerald-500/40",
-    text: "text-emerald-100",
+    badge: "bg-emerald-500/40",
+    container: "bg-emerald-950/90 border-emerald-800 text-emerald-50",
+    headline: "text-emerald-50",
+    body: "text-emerald-100/80",
   },
   warning: {
-    badge: "bg-amber-500",
-    border: "border-amber-500/40",
-    text: "text-amber-100",
+    badge: "bg-amber-500/40",
+    container: "bg-amber-950/90 border-amber-800 text-amber-50",
+    headline: "text-amber-50",
+    body: "text-amber-100/80",
   },
   error: {
-    badge: "bg-rose-500",
-    border: "border-rose-500/40",
-    text: "text-rose-100",
+    badge: "bg-rose-500/40",
+    container: "bg-rose-950/90 border-rose-800 text-rose-50",
+    headline: "text-rose-50",
+    body: "text-rose-100/80",
   },
 }
 
 export function showToastNotification(payload: ToastPayload) {
   const accent = variantAccent[payload.variant]
-  const duration = payload.duration ?? 5000
+  const duration = payload.duration ?? 10000
 
   toast.custom(
     () => (
-      <div class={`min-w-[280px] max-w-[360px] rounded-xl border px-4 py-3 shadow-xl bg-surface-secondary ${accent.border}`}>
-        <div class="flex gap-3">
+      <div class={`pointer-events-auto w-[320px] max-w-[360px] rounded-lg border px-4 py-3 shadow-xl ${accent.container}`}>
+        <div class="flex items-start gap-3">
           <span class={`mt-1 inline-block h-2.5 w-2.5 rounded-full ${accent.badge}`} />
           <div class="flex-1 text-sm leading-snug">
-            {payload.title && <p class="font-semibold text-primary">{payload.title}</p>}
-            <p class={`text-primary/90 ${payload.title ? "mt-1" : ""}`}>{payload.message}</p>
+            {payload.title && <p class={`font-semibold ${accent.headline}`}>{payload.title}</p>}
+            <p class={`${accent.body} ${payload.title ? "mt-1" : ""}`}>{payload.message}</p>
           </div>
         </div>
       </div>

@@ -1767,6 +1767,19 @@ function handleSessionCompacted(instanceId: string, event: any): void {
 
   console.log(`[SSE] Session compacted: ${sessionID}`)
   loadMessages(instanceId, sessionID, true).catch(console.error)
+
+  const instanceSessions = sessions().get(instanceId)
+  const session = instanceSessions?.get(sessionID)
+  const label = session?.title?.trim() ? session.title : sessionID
+  const instanceFolder = instances().get(instanceId)?.folder ?? instanceId
+  const instanceName = instanceFolder.split(/[\\/]/).filter(Boolean).pop() ?? instanceFolder
+
+  showToastNotification({
+    title: instanceName,
+    message: `Session ${label ? `"${label}"` : sessionID} was compacted`,
+    variant: "info",
+    duration: 10000,
+  })
 }
 
 function handleSessionError(instanceId: string, event: any): void {
@@ -1821,6 +1834,24 @@ function handleTuiToast(_instanceId: string, event: any): void {
   })
 }
 
+function handleSessionIdle(instanceId: string, event: any): void {
+  const sessionID = event.properties?.sessionID
+  if (!sessionID) return
+
+  const instanceSessions = sessions().get(instanceId)
+  const session = instanceSessions?.get(sessionID)
+  const label = session?.title?.trim() ? session.title : sessionID
+  const instanceFolder = instances().get(instanceId)?.folder ?? instanceId
+  const instanceName = instanceFolder.split(/[\\/]/).filter(Boolean).pop() ?? instanceFolder
+
+  showToastNotification({
+    title: instanceName,
+    message: `Session ${label ? `"${label}"` : sessionID} is idle`,
+    variant: "info",
+    duration: 10000,
+  })
+}
+
 sseManager.onMessageUpdate = handleMessageUpdate
 sseManager.onMessageRemoved = handleMessageRemoved
 sseManager.onMessagePartRemoved = handleMessagePartRemoved
@@ -1828,6 +1859,7 @@ sseManager.onSessionUpdate = handleSessionUpdate
 sseManager.onSessionCompacted = handleSessionCompacted
 sseManager.onSessionError = handleSessionError
 sseManager.onTuiToast = handleTuiToast
+sseManager.onSessionIdle = handleSessionIdle
 
 export {
   sessions,

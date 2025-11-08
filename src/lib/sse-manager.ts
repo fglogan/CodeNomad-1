@@ -30,6 +30,13 @@ interface TuiToastEvent {
   }
 }
 
+interface SessionIdleEvent {
+  type: "session.idle"
+  properties: {
+    sessionID: string
+  }
+}
+
 const [connectionStatus, setConnectionStatus] = createSignal<
   Map<string, "connecting" | "connected" | "disconnected" | "error">
 >(new Map())
@@ -118,7 +125,7 @@ class SSEManager {
         this.onTuiToast?.(instanceId, event as TuiToastEvent)
         break
       case "session.idle":
-        console.log("[SSE] Session idle")
+        this.onSessionIdle?.(instanceId, event as SessionIdleEvent)
         break
       default:
         console.warn("[SSE] Unknown event type:", event.type)
@@ -161,6 +168,7 @@ class SSEManager {
   onSessionCompacted?: (instanceId: string, event: any) => void
   onSessionError?: (instanceId: string, event: any) => void
   onTuiToast?: (instanceId: string, event: TuiToastEvent) => void
+  onSessionIdle?: (instanceId: string, event: SessionIdleEvent) => void
 
   getStatus(instanceId: string): "connecting" | "connected" | "disconnected" | "error" | null {
     return connectionStatus().get(instanceId) ?? null

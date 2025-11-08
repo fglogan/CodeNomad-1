@@ -1088,12 +1088,10 @@ const App: Component = () => {
 
       <Toaster
         position="top-right"
-        gutter={12}
+        gutter={16}
         toastOptions={{
-          duration: 5000,
-          className: `text-sm shadow-lg border border-base ${
-            isDark() ? "bg-surface-secondary text-primary" : "bg-white text-gray-900"
-          }`,
+          duration: 8000,
+          className: "bg-transparent border-none shadow-none p-0",
         }}
       />
     </div>
