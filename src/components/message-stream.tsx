@@ -5,11 +5,50 @@ import ToolCall from "./tool-call"
 import { sseManager } from "../lib/sse-manager"
 import Kbd from "./kbd"
 import { preferences } from "../stores/preferences"
-import { providers, getSessionInfo, computeDisplayParts } from "../stores/sessions"
+import {
+  providers,
+  getSessionInfo,
+  computeDisplayParts,
+  sessions,
+  setActiveSession,
+  setActiveParentSession,
+} from "../stores/sessions"
+import { setActiveInstanceId } from "../stores/instances"
 
 const SCROLL_OFFSET = 64
 
+interface TaskSessionLocation {
+  sessionId: string
+  instanceId: string
+  parentId: string | null
+}
+
 const messageScrollState = new Map<string, { scrollTop: number; autoScroll: boolean }>()
+
+function findTaskSessionLocation(sessionId: string): TaskSessionLocation | null {
+  if (!sessionId) return null
+  const allSessions = sessions()
+  for (const [instanceId, sessionMap] of allSessions) {
+    const session = sessionMap?.get(sessionId)
+    if (session) {
+      return {
+        sessionId: session.id,
+        instanceId,
+        parentId: session.parentId ?? null,
+      }
+    }
+  }
+  return null
+}
+
+function navigateToTaskSession(location: TaskSessionLocation) {
+  setActiveInstanceId(location.instanceId)
+  const parentToActivate = location.parentId ?? location.sessionId
+  setActiveParentSession(location.instanceId, parentToActivate)
+  if (location.parentId) {
+    setActiveSession(location.instanceId, location.sessionId)
+  }
+}
 
 // Calculate session tokens and cost from messagesInfo (matches TUI logic)
 function calculateSessionInfo(messagesInfo?: Map<string, any>, instanceId?: string) {
@@ -611,12 +650,36 @@ export default function MessageStream(props: MessageStreamProps) {
 
             const toolPart = item.toolPart
 
+            const taskSessionId =
+              typeof toolPart?.state?.metadata?.sessionId === "string" ? toolPart.state.metadata.sessionId : ""
+            const taskLocation = taskSessionId ? findTaskSessionLocation(taskSessionId) : null
+
+            const handleGoToTaskSession = (event: Event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              if (!taskLocation) return
+              navigateToTaskSession(taskLocation)
+            }
+
             return (
               <div class="tool-call-message" data-key={item.key}>
                 <div class="tool-call-header-label">
-                  <span class="tool-call-icon">🔧</span>
-                  <span>Tool Call</span>
-                  <span class="tool-name">{toolPart?.tool || "unknown"}</span>
+                  <div class="tool-call-header-meta">
+                    <span class="tool-call-icon">🔧</span>
+                    <span>Tool Call</span>
+                    <span class="tool-name">{toolPart?.tool || "unknown"}</span>
+                  </div>
+                  <Show when={taskSessionId}>
+                    <button
+                      class="tool-call-header-button"
+                      type="button"
+                      disabled={!taskLocation}
+                      onClick={handleGoToTaskSession}
+                      title={!taskLocation ? "Session not available yet" : "Go to session"}
+                    >
+                      Go to Session
+                    </button>
+                  </Show>
                 </div>
                 <ToolCall toolCall={toolPart} toolCallId={item.key} />
               </div>

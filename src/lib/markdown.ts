@@ -7,6 +7,43 @@ let currentTheme: "light" | "dark" = "light"
 let isInitialized = false
 let highlightSuppressed = false
 
+const extensionToLanguage: Record<string, string> = {
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  py: "python",
+  sh: "bash",
+  bash: "bash",
+  json: "json",
+  html: "html",
+  css: "css",
+  md: "markdown",
+  yaml: "yaml",
+  yml: "yaml",
+  sql: "sql",
+  rs: "rust",
+  go: "go",
+  cpp: "cpp",
+  cc: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  h: "cpp",
+  c: "c",
+  java: "java",
+  cs: "csharp",
+  php: "php",
+  rb: "ruby",
+  swift: "swift",
+  kt: "kotlin",
+}
+
+export function getLanguageFromPath(path?: string | null): string | undefined {
+  if (!path) return undefined
+  const ext = path.split(".").pop()?.toLowerCase()
+  return ext ? extensionToLanguage[ext] : undefined
+}
+
 // Track loaded languages and queue for on-demand loading
 const loadedLanguages = new Set<string>()
 const queuedLanguages = new Set<string>()

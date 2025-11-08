@@ -10,12 +10,15 @@ export interface AgentModelSelections {
   [instanceId: string]: Record<string, ModelPreference>
 }
 
+export type DiffViewMode = "split" | "unified"
+
 export interface Preferences {
   showThinkingBlocks: boolean
   lastUsedBinary?: string
   environmentVariables?: Record<string, string>
   modelRecents?: ModelPreference[]
   agentModelSelections?: AgentModelSelections
+  diffViewMode?: DiffViewMode
 }
 
 export interface OpenCodeBinary {
@@ -36,6 +39,7 @@ const defaultPreferences: Preferences = {
   showThinkingBlocks: false,
   modelRecents: [],
   agentModelSelections: {},
+  diffViewMode: "split",
 }
 
 const [preferences, setPreferences] = createSignal<Preferences>(defaultPreferences)
@@ -70,6 +74,11 @@ function updatePreferences(updates: Partial<Preferences>): void {
   const updated = { ...preferences(), ...updates }
   setPreferences(updated)
   saveConfig().catch(console.error)
+}
+
+function setDiffViewMode(mode: DiffViewMode): void {
+  if (preferences().diffViewMode === mode) return
+  updatePreferences({ diffViewMode: mode })
 }
 
 function toggleShowThinkingBlocks(): void {
@@ -202,4 +211,5 @@ export {
   addRecentModelPreference,
   setAgentModelPreference,
   getAgentModelPreference,
+  setDiffViewMode,
 }

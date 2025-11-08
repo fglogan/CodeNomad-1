@@ -25,6 +25,7 @@
     "package:linux": "electron-builder --linux"
   },
   "dependencies": {
+    "@git-diff-view/solid": "^0.0.8",
     "@kobalte/core": "0.13.11",
     "@opencode-ai/sdk": "0.15.13",
     "@solidjs/router": "^0.13.0",

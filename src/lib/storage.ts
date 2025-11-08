@@ -54,6 +54,7 @@ export class FileStorage {
           environmentVariables: {},
           modelRecents: [],
           agentModelSelections: {},
+          diffViewMode: "split",
         },
         recentFolders: [],
         opencodeBinaries: [],

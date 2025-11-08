@@ -24,7 +24,7 @@ import {
   showFolderSelection,
   setShowFolderSelection,
 } from "./stores/ui"
-import { toggleShowThinkingBlocks, preferences, addRecentFolder } from "./stores/preferences"
+import { toggleShowThinkingBlocks, preferences, addRecentFolder, setDiffViewMode } from "./stores/preferences"
 import {
   createInstance,
   instances,
@@ -750,6 +750,24 @@ const App: Component = () => {
       category: "System",
       keywords: ["/thinking", "toggle", "show", "hide"],
       action: toggleShowThinkingBlocks,
+    })
+
+    commandRegistry.register({
+      id: "diff-view-split",
+      label: () => `${(preferences().diffViewMode || "split") === "split" ? "✓ " : ""}Use Split Diff View`,
+      description: "Display tool-call diffs side-by-side",
+      category: "System",
+      keywords: ["diff", "split", "view"],
+      action: () => setDiffViewMode("split"),
+    })
+
+    commandRegistry.register({
+      id: "diff-view-unified",
+      label: () => `${(preferences().diffViewMode || "split") === "unified" ? "✓ " : ""}Use Unified Diff View`,
+      description: "Display tool-call diffs inline",
+      category: "System",
+      keywords: ["diff", "unified", "view"],
+      action: () => setDiffViewMode("unified"),
     })
 
     commandRegistry.register({

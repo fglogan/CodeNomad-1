@@ -1,8 +1,13 @@
 import { createSignal, Show, For, createEffect, onCleanup } from "solid-js"
 import { isToolCallExpanded, toggleToolCallExpanded, setToolCallExpanded } from "../stores/tool-call-state"
 import { Markdown } from "./markdown"
+import { ToolCallDiffViewer } from "./diff-viewer"
 import { useTheme } from "../lib/theme"
+import { getLanguageFromPath } from "../lib/markdown"
+import { isRenderableDiffText } from "../lib/diff-utils"
+import { preferences, setDiffViewMode, type DiffViewMode } from "../stores/preferences"
 import type { TextPart } from "../types/message"
+
 
 const toolScrollState = new Map<string, { scrollTop: number; atBottom: boolean }>()
 
@@ -94,40 +99,36 @@ function getRelativePath(path: string): string {
   return parts.slice(-1)[0] || path
 }
 
-function getLanguageFromPath(path: string): string | undefined {
-  if (!path) return undefined
-  const ext = path.split(".").pop()?.toLowerCase()
-  const langMap: Record<string, string> = {
-    ts: "typescript",
-    tsx: "typescript",
-    js: "javascript",
-    jsx: "javascript",
-    py: "python",
-    sh: "bash",
-    bash: "bash",
-    json: "json",
-    html: "html",
-    css: "css",
-    md: "markdown",
-    yaml: "yaml",
-    yml: "yaml",
-    sql: "sql",
-    rs: "rust",
-    go: "go",
-    cpp: "cpp",
-    cc: "cpp",
-    cxx: "cpp",
-    hpp: "cpp",
-    h: "cpp",
-    c: "c",
-    java: "java",
-    cs: "csharp",
-    php: "php",
-    rb: "ruby",
-    swift: "swift",
-    kt: "kotlin",
+const diffCapableTools = new Set(["edit", "patch"])
+
+interface DiffPayload {
+  diffText: string
+  filePath?: string
+}
+
+function extractDiffPayload(toolName: string, state: any): DiffPayload | null {
+
+  if (!diffCapableTools.has(toolName)) return null
+  if (!state) return null
+  const metadata = state.metadata || {}
+  const candidates = [metadata.diff, state.output, metadata.output]
+  let diffText: string | null = null
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && isRenderableDiffText(candidate)) {
+      diffText = candidate
+      break
+    }
   }
-  return ext ? langMap[ext] : undefined
+
+  if (!diffText) {
+    return null
+  }
+
+  const input = state.input || {}
+  const filePath = input.filePath || metadata.filePath || input.path
+
+  return { diffText, filePath }
 }
 
 export default function ToolCall(props: ToolCallProps) {
@@ -135,6 +136,7 @@ export default function ToolCall(props: ToolCallProps) {
   const toolCallId = () => props.toolCallId || props.toolCall?.id || ""
   const expanded = () => isToolCallExpanded(toolCallId())
   const [initializedId, setInitializedId] = createSignal<string | null>(null)
+
 
   let scrollContainerRef: HTMLDivElement | undefined
 
@@ -356,7 +358,56 @@ export default function ToolCall(props: ToolCallProps) {
       return renderTaskTool()
     }
 
+    const diffPayload = extractDiffPayload(toolName, state)
+    if (diffPayload) {
+      return renderDiffTool(diffPayload)
+    }
+
     return renderMarkdownTool(toolName, state)
+  }
+
+  function renderDiffTool(payload: DiffPayload) {
+    const diffMode = () => (preferences().diffViewMode || "split") as DiffViewMode
+
+    const handleModeChange = (mode: DiffViewMode) => {
+      setDiffViewMode(mode)
+    }
+
+    return (
+      <div
+        class="message-text tool-call-markdown tool-call-markdown-large tool-call-diff-shell"
+        ref={(element) => initializeScrollContainer(element)}
+        onScroll={(event) => updateScrollState(toolCallId(), event.currentTarget)}
+      >
+        <div class="tool-call-diff-toolbar" role="group" aria-label="Diff view mode">
+          <span class="tool-call-diff-toolbar-label">Diff view</span>
+          <div class="tool-call-diff-toggle">
+            <button
+              type="button"
+              class={`tool-call-diff-mode-button${diffMode() === "split" ? " active" : ""}`}
+              aria-pressed={diffMode() === "split"}
+              onClick={() => handleModeChange("split")}
+            >
+              Split
+            </button>
+            <button
+              type="button"
+              class={`tool-call-diff-mode-button${diffMode() === "unified" ? " active" : ""}`}
+              aria-pressed={diffMode() === "unified"}
+              onClick={() => handleModeChange("unified")}
+            >
+              Unified
+            </button>
+          </div>
+        </div>
+        <ToolCallDiffViewer
+          diffText={payload.diffText}
+          filePath={payload.filePath}
+          theme={isDark() ? "dark" : "light"}
+          mode={diffMode()}
+        />
+      </div>
+    )
   }
 
   function renderMarkdownTool(toolName: string, state: any) {
