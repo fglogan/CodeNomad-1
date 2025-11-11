@@ -239,27 +239,10 @@ export default function MessageStream(props: MessageStreamProps) {
 
   function createToolContentKey(toolPart: any, messageInfo?: any): string {
     const state = toolPart?.state ?? {}
-    const version = typeof toolPart?.__version === "number" ? toolPart.__version : null
-    if (version !== null) {
-      const status = state?.status ?? "unknown"
-      return `${version}:${status}`
-    }
+    const version = typeof toolPart?.version === "number" ? toolPart.version : null
+    const status = state?.status ?? "unknown"
+    return `${toolPart.id}:${version}:${status}`
 
-    const metadata = state?.metadata ?? {}
-    const input = state?.input ?? {}
-    const output = state?.output ?? {}
-    const error = state?.error ?? null
-    const title = state?.title ?? null
-    return JSON.stringify({
-      tool: toolPart?.tool ?? null,
-      status: state?.status ?? null,
-      title,
-      input,
-      output,
-      metadata,
-      error,
-      messageInfoState: messageInfo?.state ?? null,
-    })
   }
 
   const sessionInfo = createMemo(() => {
