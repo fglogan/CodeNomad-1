@@ -9,7 +9,9 @@ import type {
   EventSessionUpdated,
   EventSessionCompacted,
   EventSessionError,
-  EventSessionIdle
+  EventSessionIdle,
+  EventPermissionUpdated,
+  EventPermissionReplied
 } from "@opencode-ai/sdk"
 
 interface SSEConnection {
@@ -38,6 +40,8 @@ type SSEEvent =
   | EventSessionCompacted
   | EventSessionError
   | EventSessionIdle
+  | EventPermissionUpdated
+  | EventPermissionReplied
   | TuiToastEvent
   | { type: string; properties?: Record<string, unknown> } // Fallback for unknown event types
 
@@ -133,6 +137,12 @@ class SSEManager {
       case "session.idle":
         this.onSessionIdle?.(instanceId, event as EventSessionIdle)
         break
+      case "permission.updated":
+        this.onPermissionUpdated?.(instanceId, event as EventPermissionUpdated)
+        break
+      case "permission.replied":
+        this.onPermissionReplied?.(instanceId, event as EventPermissionReplied)
+        break
       default:
         console.warn("[SSE] Unknown event type:", event.type)
     }
@@ -176,6 +186,8 @@ class SSEManager {
   onSessionError?: (instanceId: string, event: EventSessionError) => void
   onTuiToast?: (instanceId: string, event: TuiToastEvent) => void
   onSessionIdle?: (instanceId: string, event: EventSessionIdle) => void
+  onPermissionUpdated?: (instanceId: string, event: EventPermissionUpdated) => void
+  onPermissionReplied?: (instanceId: string, event: EventPermissionReplied) => void
 
   getStatus(instanceId: string): "connecting" | "connected" | "disconnected" | "error" | null {
     return connectionStatus().get(instanceId) ?? null

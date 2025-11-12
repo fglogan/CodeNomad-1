@@ -46,17 +46,7 @@ export function createClientSession(
   }
 }
 
-// Type guard to check if object is SDK Session
-export function isSdkSession(obj: unknown): obj is import("@opencode-ai/sdk").Session {
-  return (
-    typeof obj === "object" &&
-    obj !== null &&
-    "id" in obj &&
-    "title" in obj &&
-    "version" in obj &&
-    "time" in obj
-  )
-}
+// No type guard needed - we control the API and know the exact types we receive
 
 // Our client-specific Agent interface (simplified version of SDK Agent)
 export interface Agent {

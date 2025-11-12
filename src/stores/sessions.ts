@@ -2,7 +2,7 @@ import { createSignal } from "solid-js"
 import type { Session, Agent, Provider } from "../types/session"
 import type { Message, MessageDisplayParts, MessagePartRemovedEvent, MessagePartUpdatedEvent, MessageRemovedEvent, MessageUpdateEvent } from "../types/message"
 import { partHasRenderableText } from "../types/message"
-import { instances } from "./instances"
+import { instances, addPermissionToQueue, removePermissionFromQueue } from "./instances"
 
 import { sseManager } from "../lib/sse-manager"
 import { decodeHtmlEntities } from "../lib/markdown"
@@ -12,7 +12,9 @@ import type {
   EventSessionUpdated,
   EventSessionCompacted,
   EventSessionError,
-  EventSessionIdle
+  EventSessionIdle,
+  EventPermissionUpdated,
+  EventPermissionReplied
 } from "@opencode-ai/sdk"
 
 interface TuiToastEvent {
@@ -2123,6 +2125,22 @@ function handleTuiToast(_instanceId: string, event: TuiToastEvent): void {
   })
 }
 
+function handlePermissionUpdated(instanceId: string, event: EventPermissionUpdated): void {
+  const permission = event.properties
+  if (!permission) return
+
+  console.log(`[SSE] Permission updated: ${permission.id} (${permission.type})`)
+  addPermissionToQueue(instanceId, permission)
+}
+
+function handlePermissionReplied(instanceId: string, event: EventPermissionReplied): void {
+  const { permissionID } = event.properties
+  if (!permissionID) return
+
+  console.log(`[SSE] Permission replied: ${permissionID}`)
+  removePermissionFromQueue(instanceId, permissionID)
+}
+
 sseManager.onMessageUpdate = handleMessageUpdate
 sseManager.onMessagePartUpdated = handleMessageUpdate
 sseManager.onMessageRemoved = handleMessageRemoved
@@ -2132,6 +2150,8 @@ sseManager.onSessionCompacted = handleSessionCompacted
 sseManager.onSessionError = handleSessionError
 sseManager.onSessionIdle = handleSessionIdle
 sseManager.onTuiToast = handleTuiToast
+sseManager.onPermissionUpdated = handlePermissionUpdated
+sseManager.onPermissionReplied = handlePermissionReplied
 
 export {
   sessions,

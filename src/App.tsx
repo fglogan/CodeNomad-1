@@ -3,6 +3,7 @@ import { Toaster } from "solid-toast"
 import type { Session } from "./types/session"
 import type { Attachment } from "./types/attachment"
 import type { SDKPart, ClientPart } from "./types/message"
+import type { Permission } from "@opencode-ai/sdk"
 import FolderSelectionView from "./components/folder-selection-view"
 import InstanceWelcomeView from "./components/instance-welcome-view"
 import CommandPalette from "./components/command-palette"
@@ -36,6 +37,8 @@ import {
   stopInstance,
   getActiveInstance,
   addLog,
+  getActivePermission,
+  sendPermissionResponse,
 } from "./stores/instances"
 import {
   getSessions,
@@ -173,6 +176,41 @@ const SessionView: Component<{
   }
 
 
+  const activePermission = createMemo(() => getActivePermission(props.instanceId))
+
+  async function handlePermissionResponse(response: "once" | "always" | "reject") {
+    const permission = activePermission()
+    if (!permission) return
+
+    try {
+      await sendPermissionResponse(props.instanceId, props.sessionId, permission.id, response)
+    } catch (error) {
+      console.error("Failed to send permission response:", error)
+    }
+  }
+
+  // Handle permission keyboard shortcuts
+  createEffect(() => {
+    const permission = activePermission()
+    if (!permission) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Enter") {
+        event.preventDefault()
+        handlePermissionResponse("once")
+      } else if (event.key === "a" || event.key === "A") {
+        event.preventDefault()
+        handlePermissionResponse("always")
+      } else if (event.key === "d" || event.key === "D") {
+        event.preventDefault()
+        handlePermissionResponse("reject")
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    onCleanup(() => document.removeEventListener("keydown", handleKeyDown))
+  })
+
   return (
     <Show
       when={session()}
@@ -194,6 +232,40 @@ const SessionView: Component<{
             onRevert={handleRevert}
             onFork={handleFork}
           />
+
+          <Show when={activePermission()}>
+            {(permission) => (
+              <div class="permission-dialog border-2 border-[var(--status-warning)] bg-surface-secondary p-4 mx-4 mb-4 rounded-lg shadow-lg">
+                <div class="flex items-start gap-3">
+                  <div class="flex-shrink-0">
+                    <div class="w-6 h-6 bg-[var(--status-warning)] rounded-full flex items-center justify-center">
+                      <svg class="w-4 h-4 text-[var(--text-inverted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="flex-1">
+                    <div class="mb-2">
+                      <span class="font-semibold text-primary">Permission Required</span>
+                      <span class="ml-2 font-mono text-sm bg-surface-secondary border border-base rounded px-1.5 py-0.5">{permission().type}</span>
+                    </div>
+                    <div class="bg-surface-code p-3 rounded border mb-3">
+                      <code class="text-sm text-primary">{permission().title}</code>
+                    </div>
+                    <div class="flex gap-2 text-sm">
+                      <kbd class="kbd">Enter</kbd>
+                      <span class="text-muted">Accept once</span>
+                      <kbd class="kbd ml-4">a</kbd>
+                      <span class="text-muted">Accept always</span>
+                      <kbd class="kbd ml-4">d</kbd>
+                      <span class="text-muted">Deny</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Show>
+
           <PromptInput
             instanceId={props.instanceId}
             instanceFolder={props.instanceFolder}

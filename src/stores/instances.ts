@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js"
 import type { Instance, LogEntry } from "../types/instance"
+import type { Permission } from "@opencode-ai/sdk"
 import { sdkManager } from "../lib/sdk-manager"
 import { sseManager } from "../lib/sse-manager"
 import {
@@ -15,6 +16,10 @@ const [instances, setInstances] = createSignal<Map<string, Instance>>(new Map())
 const [activeInstanceId, setActiveInstanceId] = createSignal<string | null>(null)
 const [instanceLogs, setInstanceLogs] = createSignal<Map<string, LogEntry[]>>(new Map())
 const [logStreamingState, setLogStreamingState] = createSignal<Map<string, boolean>>(new Map())
+
+// Permission queue management per instance
+const [permissionQueues, setPermissionQueues] = createSignal<Map<string, Permission[]>>(new Map())
+const [activePermissionId, setActivePermissionId] = createSignal<Map<string, string | null>>(new Map())
 
 const MAX_LOG_ENTRIES = 1000
 
@@ -115,10 +120,11 @@ function removeInstance(id: string) {
 
     if (activeInstanceId() === id) {
       if (index > 0) {
-        nextActiveId = keys[index - 1]
+        const prevKey = keys[index - 1]
+        nextActiveId = prevKey ?? null
       } else {
         const remainingKeys = Array.from(next.keys())
-        nextActiveId = remainingKeys.length > 0 ? remainingKeys[0] : null
+        nextActiveId = remainingKeys.length > 0 ? (remainingKeys[0] ?? null) : null
       }
     }
 
@@ -146,7 +152,7 @@ async function createInstance(folder: string, binaryPath?: string): Promise<stri
     pid: 0,
     status: "starting",
     client: null,
-    environmentVariables: preferences().environmentVariables,
+    environmentVariables: preferences().environmentVariables ?? {},
   }
 
   addInstance(instance)
@@ -242,6 +248,114 @@ function clearLogs(id: string) {
   })
 }
 
+// Permission management functions
+function getPermissionQueue(instanceId: string): Permission[] {
+  return permissionQueues().get(instanceId) ?? []
+}
+
+function getPermissionQueueLength(instanceId: string): number {
+  return getPermissionQueue(instanceId).length
+}
+
+function addPermissionToQueue(instanceId: string, permission: Permission): void {
+  setPermissionQueues((prev) => {
+    const next = new Map(prev)
+    const queue = next.get(instanceId) ?? []
+
+    // Check if permission already exists
+    if (queue.some(p => p.id === permission.id)) {
+      return next // Don't add duplicate
+    }
+
+    // Add to queue and sort by creation time to maintain order
+    const updatedQueue = [...queue, permission].sort((a, b) => a.time.created - b.time.created)
+    next.set(instanceId, updatedQueue)
+    return next
+  })
+
+  // Set as active if no active permission
+  setActivePermissionId((prev) => {
+    const next = new Map(prev)
+    if (!next.get(instanceId)) {
+      next.set(instanceId, permission.id)
+    }
+    return next
+  })
+}
+
+function getActivePermission(instanceId: string): Permission | null {
+  const activeId = activePermissionId().get(instanceId)
+  if (!activeId) return null
+
+  const queue = getPermissionQueue(instanceId)
+  return queue.find(p => p.id === activeId) ?? null
+}
+
+function removePermissionFromQueue(instanceId: string, permissionId: string): void {
+  let updatedQueue: Permission[] = []
+
+  setPermissionQueues((prev) => {
+    const next = new Map(prev)
+    const queue = next.get(instanceId) ?? []
+    updatedQueue = queue.filter(p => p.id !== permissionId)
+    if (updatedQueue.length > 0) {
+      next.set(instanceId, updatedQueue)
+    } else {
+      next.delete(instanceId)
+    }
+    return next
+  })
+
+  setActivePermissionId((prev) => {
+    const next = new Map(prev)
+    const activeId = next.get(instanceId)
+    if (activeId === permissionId) {
+      // Set the next permission in queue as active, or null if queue is empty
+      const nextPermission = updatedQueue.length > 0 ? updatedQueue[0] : null
+      next.set(instanceId, nextPermission?.id ?? null)
+    }
+    return next
+  })
+}
+
+function clearPermissionQueue(instanceId: string): void {
+  setPermissionQueues((prev) => {
+    const next = new Map(prev)
+    next.delete(instanceId)
+    return next
+  })
+  setActivePermissionId((prev) => {
+    const next = new Map(prev)
+    next.delete(instanceId)
+    return next
+  })
+}
+
+async function sendPermissionResponse(
+  instanceId: string,
+  sessionId: string,
+  permissionId: string,
+  response: "once" | "always" | "reject"
+): Promise<void> {
+  const instance = instances().get(instanceId)
+  if (!instance?.client) {
+    throw new Error("Instance not ready")
+  }
+
+  try {
+    await instance.client.postSessionIdPermissionsPermissionId({
+      path: { id: sessionId, permissionID: permissionId },
+      body: { response }
+    })
+
+    // Remove from queue after successful response
+    removePermissionFromQueue(instanceId, permissionId)
+  } catch (error) {
+    console.error("Failed to send permission response:", error)
+    throw error
+  }
+}
+
 export {
   instances,
   activeInstanceId,
@@ -258,4 +372,14 @@ export {
   getInstanceLogs,
   isInstanceLogStreaming,
   setInstanceLogStreaming,
+  // Permission management
+  permissionQueues,
+  activePermissionId,
+  getPermissionQueue,
+  getPermissionQueueLength,
+  addPermissionToQueue,
+  getActivePermission,
+  removePermissionFromQueue,
+  clearPermissionQueue,
+  sendPermissionResponse,
 }
