@@ -45,13 +45,24 @@ const defaultPreferences: Preferences = {
 const [preferences, setPreferences] = createSignal<Preferences>(defaultPreferences)
 const [recentFolders, setRecentFolders] = createSignal<RecentFolder[]>([])
 const [opencodeBinaries, setOpenCodeBinaries] = createSignal<OpenCodeBinary[]>([])
+let cachedConfig: ConfigData = {
+  preferences: defaultPreferences,
+  recentFolders: [],
+  opencodeBinaries: [],
+}
 
 async function loadConfig(): Promise<void> {
   try {
     const config = await storage.loadConfig()
-    setPreferences({ ...defaultPreferences, ...config.preferences })
-    setRecentFolders(config.recentFolders)
-    setOpenCodeBinaries(config.opencodeBinaries || [])
+    cachedConfig = {
+      ...config,
+      preferences: { ...defaultPreferences, ...config.preferences },
+      recentFolders: config.recentFolders || [],
+      opencodeBinaries: config.opencodeBinaries || [],
+    }
+    setPreferences(cachedConfig.preferences)
+    setRecentFolders(cachedConfig.recentFolders)
+    setOpenCodeBinaries(cachedConfig.opencodeBinaries)
   } catch (error) {
     console.error("Failed to load config:", error)
   }
@@ -60,10 +71,12 @@ async function loadConfig(): Promise<void> {
 async function saveConfig(): Promise<void> {
   try {
     const config: ConfigData = {
+      ...cachedConfig,
       preferences: preferences(),
       recentFolders: recentFolders(),
       opencodeBinaries: opencodeBinaries(),
     }
+    cachedConfig = config
     await storage.saveConfig(config)
   } catch (error) {
     console.error("Failed to save config:", error)
@@ -102,7 +115,9 @@ function removeRecentFolder(path: string): void {
 
 function addOpenCodeBinary(path: string, version?: string): void {
   const binaries = opencodeBinaries().filter((b) => b.path !== path)
-  binaries.unshift({ path, version, lastUsed: Date.now() })
+  const lastUsed = Date.now()
+  const binaryEntry: OpenCodeBinary = version ? { path, version, lastUsed } : { path, lastUsed }
+  binaries.unshift(binaryEntry)
 
   const trimmed = binaries.slice(0, 10) // Keep max 10 binaries
   setOpenCodeBinaries(trimmed)

@@ -1,8 +1,7 @@
 import { Component, createSignal, Show, For, onMount, onCleanup, createEffect } from "solid-js"
-import { Folder, Clock, Trash2, FolderPlus, Settings, ChevronDown, ChevronUp } from "lucide-solid"
+import { Folder, Clock, Trash2, FolderPlus, Settings, ChevronRight } from "lucide-solid"
 import { recentFolders, removeRecentFolder, preferences, updateLastUsedBinary } from "../stores/preferences"
-import OpenCodeBinarySelector from "./opencode-binary-selector"
-import EnvironmentVariablesEditor from "./environment-variables-editor"
+import AdvancedSettingsModal from "./advanced-settings-modal"
 import Kbd from "./kbd"
 
 interface FolderSelectionViewProps {
@@ -13,7 +12,7 @@ interface FolderSelectionViewProps {
 const FolderSelectionView: Component<FolderSelectionViewProps> = (props) => {
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [focusMode, setFocusMode] = createSignal<"recent" | "new" | null>("recent")
-  const [showAdvanced, setShowAdvanced] = createSignal(false)
+  const [isAdvancedModalOpen, setIsAdvancedModalOpen] = createSignal(false)
   const [selectedBinary, setSelectedBinary] = createSignal(preferences().lastUsedBinary || "opencode")
   let recentListRef: HTMLDivElement | undefined
  
@@ -198,10 +197,11 @@ const FolderSelectionView: Component<FolderSelectionViewProps> = (props) => {
   }
 
   return (
-    <div
-      class="flex h-screen w-full items-start justify-center overflow-hidden py-6 relative"
-      style="background-color: var(--surface-secondary)"
-    >
+    <>
+      <div
+        class="flex h-screen w-full items-start justify-center overflow-hidden py-6 relative"
+        style="background-color: var(--surface-secondary)"
+      >
       <div
         class="w-full max-w-3xl h-full max-h-[90vh] px-8 flex flex-col overflow-hidden"
         aria-busy={isLoading() ? "true" : "false"}
@@ -317,36 +317,18 @@ const FolderSelectionView: Component<FolderSelectionViewProps> = (props) => {
             {/* Advanced settings section */}
             <div class="panel-section w-full">
               <button
-                onClick={() => setShowAdvanced(!showAdvanced())}
-                class="panel-section-header w-full"
+                onClick={() => setIsAdvancedModalOpen(true)}
+                class="panel-section-header w-full justify-between"
               >
                 <div class="flex items-center gap-2">
                   <Settings class="w-4 h-4 icon-muted" />
                   <span class="text-sm font-medium text-secondary">Advanced Settings</span>
                 </div>
-                {showAdvanced() ? (
-                  <ChevronUp class="w-4 h-4 icon-muted" />
-                ) : (
-                  <ChevronDown class="w-4 h-4 icon-muted" />
-                )}
+                <ChevronRight class="w-4 h-4 icon-muted" />
               </button>
-
-              <Show when={showAdvanced()}>
-                <div class="panel-section-content w-full">
-                  <div class="w-full">
-                    <div class="text-sm font-medium mb-2 text-secondary">OpenCode Binary</div>
-                    <OpenCodeBinarySelector
-                      selectedBinary={selectedBinary()}
-                      onBinaryChange={handleBinaryChange}
-                      disabled={props.isLoading}
-                    />
-                  </div>
-
-                  <div class="w-full">
-                    <EnvironmentVariablesEditor disabled={props.isLoading} />
-                  </div>
-                </div>
-              </Show>
+              <div class="panel-section-content text-sm text-muted">
+                Configure the OpenCode binary and environment variables.
+              </div>
             </div>
           </div>
         </div>
@@ -385,6 +367,15 @@ const FolderSelectionView: Component<FolderSelectionViewProps> = (props) => {
         </div>
       </Show>
     </div>
+
+      <AdvancedSettingsModal
+        open={isAdvancedModalOpen()}
+        onClose={() => setIsAdvancedModalOpen(false)}
+        selectedBinary={selectedBinary()}
+        onBinaryChange={handleBinaryChange}
+        isLoading={props.isLoading}
+      />
+    </>
   )
 }
 

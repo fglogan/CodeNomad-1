@@ -3,7 +3,7 @@ import { processManager } from "./process-manager"
 import { randomBytes } from "crypto"
 import * as fs from "fs"
 import * as path from "path"
-import { execSync } from "child_process"
+import { spawn } from "child_process"
 import ignore from "ignore"
 
 interface Instance {
@@ -19,6 +19,44 @@ const instances = new Map<string, Instance>()
 
 function generateId(): string {
   return randomBytes(16).toString("hex")
+}
+
+function runBinaryVersion(binaryPath: string, timeoutMs = 5000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binaryPath, ["-v"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+
+    let stdout = ""
+    let stderr = ""
+
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM")
+      reject(new Error("Version check timed out"))
+    }, timeoutMs)
+
+    child.stdout?.on("data", (data) => {
+      stdout += data.toString()
+    })
+
+    child.stderr?.on("data", (data) => {
+      stderr += data.toString()
+    })
+
+    child.on("error", (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+
+    child.on("close", (code) => {
+      clearTimeout(timeout)
+      if (code === 0) {
+        resolve(stdout.trim())
+      } else {
+        reject(new Error(stderr.trim() || `Binary exited with code ${code}`))
+      }
+    })
+  })
 }
 
 export function setupInstanceIPC(mainWindow: BrowserWindow) {
@@ -185,47 +223,16 @@ export function setupInstanceIPC(mainWindow: BrowserWindow) {
         }
       }
 
-      // Try to get version
-      let version: string | undefined
+      // Try to get version once via -v flag
       try {
-        // Try -v flag first (opencode uses this)
-        let versionOutput = execSync(`${binaryPath} -v`, {
-          stdio: "pipe",
-          encoding: "utf-8",
-          timeout: 5000,
-        })
-
-        version = versionOutput.trim()
+        const version = await runBinaryVersion(binaryPath)
+        return { valid: true, version }
       } catch (error) {
-        // Version check failed, but binary might still be valid
-
-        try {
-          let versionOutput = execSync(`${binaryPath} --version`, {
-            stdio: "pipe",
-            encoding: "utf-8",
-            timeout: 5000,
-          })
-
-          version = versionOutput.trim()
-        } catch (fallbackError) {}
-      }
-
-      // Try to run help command to verify it's actually opencode
-      try {
-        const helpOutput = execSync(`${binaryPath} --help`, {
-          stdio: "pipe",
-          encoding: "utf-8",
-          timeout: 5000,
-        })
-
-        if (!helpOutput.toLowerCase().includes("opencode")) {
-          return { valid: false, error: "Not an OpenCode binary" }
+        return {
+          valid: false,
+          error: error instanceof Error ? error.message : String(error),
         }
-      } catch (error) {
-        return { valid: false, error: "Binary failed to execute" }
       }
-
-      return { valid: true, version }
     } catch (error) {
       return {
         valid: false,

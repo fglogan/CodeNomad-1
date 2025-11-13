@@ -1,154 +1,148 @@
-import { Component, createSignal, Show, For, onMount, createEffect, onCleanup } from "solid-js"
-import { ChevronDown, ChevronUp, FolderOpen, Trash2, Check, AlertCircle, Loader2 } from "lucide-solid"
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { FolderOpen, Trash2, Check, AlertCircle, Loader2, Plus } from "lucide-solid"
 import {
   opencodeBinaries,
   addOpenCodeBinary,
   removeOpenCodeBinary,
   preferences,
-  updateLastUsedBinary,
+  updatePreferences,
 } from "../stores/preferences"
+
+interface BinaryOption {
+  path: string
+  version?: string
+  lastUsed?: number
+  isDefault?: boolean
+}
 
 interface OpenCodeBinarySelectorProps {
   selectedBinary: string
   onBinaryChange: (binary: string) => void
   disabled?: boolean
+  isVisible?: boolean
 }
 
 const OpenCodeBinarySelector: Component<OpenCodeBinarySelectorProps> = (props) => {
-  const [isOpen, setIsOpen] = createSignal(false)
   const [customPath, setCustomPath] = createSignal("")
   const [validating, setValidating] = createSignal(false)
   const [validationError, setValidationError] = createSignal<string | null>(null)
-  const [versionInfo, setVersionInfo] = createSignal<Map<string, string>>(new Map())
-  const [validatingPaths, setValidatingPaths] = createSignal<Set<string>>(new Set())
-  let buttonRef: HTMLButtonElement | undefined
+  const [versionInfo, setVersionInfo] = createSignal<Map<string, string>>(new Map<string, string>())
+  const [validatingPaths, setValidatingPaths] = createSignal<Set<string>>(new Set<string>())
 
   const binaries = () => opencodeBinaries()
   const lastUsedBinary = () => preferences().lastUsedBinary
 
-  // Set initial selected binary
+  const customBinaries = createMemo(() => binaries().filter((binary) => binary.path !== "opencode"))
+
+  const binaryOptions = createMemo<BinaryOption[]>(() => [{ path: "opencode", isDefault: true }, ...customBinaries()])
+
+  const currentSelectionPath = () => props.selectedBinary || "opencode"
+
   createEffect(() => {
-    console.log(
-      `[BinarySelector] Component effect - selectedBinary: ${props.selectedBinary}, lastUsed: ${lastUsedBinary()}, binaries count: ${binaries().length}`,
-    )
     if (!props.selectedBinary && lastUsedBinary()) {
       props.onBinaryChange(lastUsedBinary()!)
-    } else if (!props.selectedBinary && binaries().length > 0) {
-      props.onBinaryChange(binaries()[0].path)
-    }
-  })
-
-  // Validate all binaries when selector opens (only once)
-  createEffect(() => {
-    if (isOpen()) {
-      const pathsToValidate = ["opencode", ...binaries().map((b) => b.path)]
-
-      // Use setTimeout to break the reactive cycle and validate once
-      setTimeout(() => {
-        pathsToValidate.forEach((path) => {
-          validateBinary(path).catch(console.error)
-        })
-      }, 0)
-    }
-  })
-
-  // Click outside handler
-  onMount(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (buttonRef && !buttonRef.contains(event.target as Node)) {
-        const dropdown = document.querySelector("[data-binary-dropdown]")
-        if (dropdown && !dropdown.contains(event.target as Node)) {
-          setIsOpen(false)
-        }
+    } else if (!props.selectedBinary) {
+      const firstBinary = binaries()[0]
+      if (firstBinary) {
+        props.onBinaryChange(firstBinary.path)
       }
     }
+  })
 
-    document.addEventListener("click", handleClickOutside)
-    onCleanup(() => {
-      document.removeEventListener("click", handleClickOutside)
-      // Clean up validating state on unmount
-      setValidatingPaths(new Set<string>())
-      setValidating(false)
+  createEffect(() => {
+    const cache = new Map(versionInfo())
+    let updated = false
+
+    binaries().forEach((binary) => {
+      if (binary.version && !cache.has(binary.path)) {
+        cache.set(binary.path, binary.version)
+        updated = true
+      }
     })
+
+    if (updated) {
+      setVersionInfo(cache)
+    }
+  })
+
+  createEffect(() => {
+    if (!props.isVisible) return
+    const cache = versionInfo()
+    const pathsToValidate = ["opencode", ...customBinaries().map((binary) => binary.path)].filter(
+      (path) => !cache.has(path),
+    )
+
+    if (pathsToValidate.length === 0) return
+
+    setTimeout(() => {
+      pathsToValidate.forEach((path) => {
+        validateBinary(path).catch(console.error)
+      })
+    }, 0)
+  })
+
+  onCleanup(() => {
+    setValidatingPaths(new Set<string>())
+    setValidating(false)
   })
 
   async function validateBinary(path: string): Promise<{ valid: boolean; version?: string; error?: string }> {
-    // Prevent duplicate validation calls
+    if (versionInfo().has(path)) {
+      const cachedVersion = versionInfo().get(path)
+      return cachedVersion ? { valid: true, version: cachedVersion } : { valid: true }
+    }
+
     if (validatingPaths().has(path)) {
-      console.log(`[BinarySelector] Already validating ${path}, skipping...`)
       return { valid: false, error: "Already validating" }
     }
 
     try {
-      // Add to validating set
       setValidatingPaths((prev) => new Set(prev).add(path))
       setValidating(true)
       setValidationError(null)
 
-      console.log(`[BinarySelector] Starting validation for: ${path}`)
-
       const result = await window.electronAPI.validateOpenCodeBinary(path)
-      console.log(`[BinarySelector] Validation result:`, result)
 
       if (result.valid && result.version) {
         const updatedVersionInfo = new Map(versionInfo())
         updatedVersionInfo.set(path, result.version)
         setVersionInfo(updatedVersionInfo)
-        console.log(`[BinarySelector] Updated version info for ${path}: ${result.version}`)
-      } else {
-        console.log(`[BinarySelector] No valid version returned for ${path}`)
       }
 
       return result
     } catch (error) {
-      console.error(`[BinarySelector] Validation error for ${path}:`, error)
       return { valid: false, error: error instanceof Error ? error.message : String(error) }
     } finally {
-      // Remove from validating set
       setValidatingPaths((prev) => {
-        const newSet = new Set(prev)
-        newSet.delete(path)
-        return newSet
+        const next = new Set(prev)
+        next.delete(path)
+        if (next.size === 0) {
+          setValidating(false)
+        }
+        return next
       })
-
-      // Only set validating to false if no other paths are being validated
-      if (validatingPaths().size <= 1) {
-        setValidating(false)
-      }
     }
   }
 
   async function handleBrowseBinary() {
     try {
       const path = await window.electronAPI.selectOpenCodeBinary()
-      if (path) {
-        setCustomPath(path)
-        const validation = await validateBinary(path)
+      if (!path) return
 
-        if (validation.valid) {
-          addOpenCodeBinary(path, validation.version)
-          props.onBinaryChange(path)
-          updateLastUsedBinary(path)
-          setCustomPath("")
-        } else {
-          setValidationError(validation.error || "Invalid OpenCode binary")
-        }
-      }
+      setCustomPath(path)
+      await handleValidateAndAdd(path)
     } catch (error) {
       setValidationError(error instanceof Error ? error.message : "Failed to select binary")
     }
   }
 
-  async function handleCustomPathSubmit() {
-    const path = customPath().trim()
-    if (!path) return
-
+  async function handleValidateAndAdd(path: string) {
     const validation = await validateBinary(path)
 
     if (validation.valid) {
       addOpenCodeBinary(path, validation.version)
       props.onBinaryChange(path)
-      updateLastUsedBinary(path)
+      updatePreferences({ lastUsedBinary: path })
       setCustomPath("")
       setValidationError(null)
     } else {
@@ -156,27 +150,32 @@ const OpenCodeBinarySelector: Component<OpenCodeBinarySelectorProps> = (props) =
     }
   }
 
-  function handleSelectBinary(path: string) {
-    props.onBinaryChange(path)
-    updateLastUsedBinary(path)
-    setIsOpen(false)
+  async function handleCustomPathSubmit() {
+    const path = customPath().trim()
+    if (!path) return
+    await handleValidateAndAdd(path)
   }
 
-  function handleRemoveBinary(path: string, e: Event) {
-    e.stopPropagation()
+  function handleSelectBinary(path: string) {
+    if (props.disabled) return
+    if (path === props.selectedBinary) return
+    props.onBinaryChange(path)
+    updatePreferences({ lastUsedBinary: path })
+  }
+
+  function handleRemoveBinary(path: string, event: Event) {
+    event.stopPropagation()
+    if (props.disabled) return
     removeOpenCodeBinary(path)
 
     if (props.selectedBinary === path) {
-      const remaining = binaries().filter((b) => b.path !== path)
-      if (remaining.length > 0) {
-        handleSelectBinary(remaining[0].path)
-      } else {
-        props.onBinaryChange("opencode") // Default to system PATH
-      }
+      props.onBinaryChange("opencode")
+      updatePreferences({ lastUsedBinary: "opencode" })
     }
   }
 
-  function formatRelativeTime(timestamp: number): string {
+  function formatRelativeTime(timestamp?: number): string {
+    if (!timestamp) return ""
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)
@@ -190,220 +189,133 @@ const OpenCodeBinarySelector: Component<OpenCodeBinarySelectorProps> = (props) =
 
   function getDisplayName(path: string): string {
     if (path === "opencode") return "opencode (system PATH)"
-
-    // Extract just the binary name from path
     const parts = path.split(/[/\\]/)
-    const name = parts[parts.length - 1]
-
-    // If it's the same as default, show full path
-    if (name === "opencode") {
-      return path
-    }
-
-    return name
+    return parts[parts.length - 1] ?? path
   }
 
-  function handleButtonClick() {
-    setIsOpen(!isOpen())
-  }
+  const isPathValidating = (path: string) => validatingPaths().has(path)
 
   return (
-    <div class="relative" style={{ position: "relative" }}>
-      {/* Main selector button */}
-      <button
-        type="button"
-        onClick={handleButtonClick}
-        disabled={props.disabled}
-        classList={{
-          "selector-trigger": true,
-          "w-full": true,
-          "px-3": true,
-          "py-2": true,
-          "text-sm": true,
-          "shadow-sm": true,
-          "selector-trigger-disabled": props.disabled
-        }}
-        ref={buttonRef}
-      >
-        <div class="flex items-center gap-2 flex-1 min-w-0">
-          <Show when={validating()} fallback={<FolderOpen class="w-4 h-4 selector-trigger-icon" />}>
-            <Loader2 class="w-4 h-4 selector-loading-spinner" />
-          </Show>
-          <span class="truncate">
-            {getDisplayName(props.selectedBinary || "opencode")}
-          </span>
-          <Show when={versionInfo().get(props.selectedBinary)}>
-            <span class="selector-badge-version">v{versionInfo().get(props.selectedBinary)}</span>
-          </Show>
+    <div class="panel">
+      <div class="panel-header flex items-center justify-between gap-3">
+        <div>
+          <h3 class="panel-title">OpenCode Binary</h3>
+          <p class="panel-subtitle">Choose which executable OpenCode should run</p>
         </div>
-        <ChevronDown
-          class={`w-4 h-4 selector-trigger-icon transition-transform ${isOpen() ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      {/* Dropdown */}
-      <Show when={isOpen()}>
-        <div
-          data-binary-dropdown
-          class="selector-popover absolute top-full left-0 right-0 mt-1 max-h-96 overflow-y-auto"
-          style={{
-            position: "absolute",
-            "z-index": 500,
-            "max-height": "24rem",
-          }}
-        >
-          <div class="selector-section">
-            <div class="selector-section-title mb-2">OpenCode Binary Selection</div>
-
-            {/* Custom path input */}
-            <div class="space-y-2">
-              <div class="selector-input-group">
-                <input
-                  type="text"
-                  value={customPath()}
-                  onInput={(e) => setCustomPath(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleCustomPathSubmit()
-                    } else if (e.key === "Escape") {
-                      setCustomPath("")
-                      setValidationError(null)
-                    }
-                  }}
-                  placeholder="Enter path to opencode binary..."
-                  class="selector-input"
-                />
-                <button
-                  onClick={handleCustomPathSubmit}
-                  disabled={!customPath().trim() || validating()}
-                  class="selector-button selector-button-primary"
-                >
-                  Add
-                </button>
-              </div>
-
-              {/* Browse button */}
-              <button
-                onClick={handleBrowseBinary}
-                disabled={validating()}
-                class="selector-button selector-button-secondary w-full flex items-center justify-center gap-2"
-              >
-                <FolderOpen class="w-4 h-4" />
-                Browse for Binary...
-              </button>
-            </div>
-
-            {/* Validation error */}
-            <Show when={validationError()}>
-              <div class="selector-validation-error mt-2">
-                <div class="selector-validation-error-content">
-                  <AlertCircle class="selector-validation-error-icon" />
-                  <span class="selector-validation-error-text">{validationError()}</span>
-                </div>
-              </div>
-            </Show>
+        <Show when={validating()}>
+          <div class="selector-loading text-xs">
+            <Loader2 class="selector-loading-spinner" />
+            <span>Checking versions…</span>
           </div>
+        </Show>
+      </div>
 
-          {/* Recent binaries list */}
-          <div class="max-h-60 overflow-y-auto">
-            <Show
-              when={binaries().length > 0}
-              fallback={
-                <div class="selector-empty-state">
-                  No recent binaries. Add one above or use system PATH.
-                </div>
+      <div class="panel-body space-y-3">
+        <div class="selector-input-group">
+          <input
+            type="text"
+            value={customPath()}
+            onInput={(e) => setCustomPath(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                handleCustomPathSubmit()
               }
-            >
-              <For each={binaries()}>
-                {(binary) => {
-                  const isSelected = () => props.selectedBinary === binary.path
-                  const version = () => {
-                    const ver = versionInfo().get(binary.path)
-                    console.log(`[BinarySelector] Rendering version for ${binary.path}: ${ver || "undefined"}`)
-                    return ver
-                  }
+            }}
+            disabled={props.disabled}
+            placeholder="Enter path to opencode binary…"
+            class="selector-input"
+          />
+          <button
+            type="button"
+            onClick={handleCustomPathSubmit}
+            disabled={props.disabled || !customPath().trim()}
+            class="selector-button selector-button-primary"
+          >
+            <Plus class="w-4 h-4" />
+            Add
+          </button>
+        </div>
 
-                  return (
-                    <div
-                      class={`selector-option border-b last:border-b-0 ${
-                        isSelected() ? "selector-option-selected" : ""
-                      }`}
-                      onClick={() => handleSelectBinary(binary.path)}
-                    >
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2 flex-1 min-w-0">
-                          <Show
-                            when={isSelected()}
-                            fallback={<FolderOpen class="w-4 h-4 selector-trigger-icon" />}
-                          >
-                            <Check class="w-4 h-4 selector-option-indicator" />
-                          </Show>
-                          <div class="flex-1 min-w-0">
-                            <div class="selector-option-label truncate">
-                              {getDisplayName(binary.path)}
-                            </div>
-                            <div class="flex items-center gap-2 mt-0.5">
-                              <Show when={version()}>
-                                <span class="selector-badge-version">v{version()}</span>
-                              </Show>
-                              <span class="selector-badge-time">
-                                {formatRelativeTime(binary.lastUsed)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => handleRemoveBinary(binary.path, e)}
-                          class="remove-binary-button"
-                          title="Remove binary"
-                        >
-                          <Trash2 class="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                }}
-              </For>
-            </Show>
-          </div>
+        <button
+          type="button"
+          onClick={handleBrowseBinary}
+          disabled={props.disabled}
+          class="selector-button selector-button-secondary w-full flex items-center justify-center gap-2"
+        >
+          <FolderOpen class="w-4 h-4" />
+          Browse for Binary…
+        </button>
 
-          {/* Default option */}
-          <div class="selector-section">
-            <div
-              class={`selector-option ${
-                props.selectedBinary === "opencode" ? "selector-option-selected" : ""
-              }`}
-              onClick={() => handleSelectBinary("opencode")}
-            >
-              <div class="flex items-center gap-2">
-                <Show
-                  when={props.selectedBinary === "opencode"}
-                  fallback={<FolderOpen class="w-4 h-4 selector-trigger-icon" />}
-                >
-                  <Check class="w-4 h-4 selector-option-indicator" />
-                </Show>
-                <div class="flex-1 min-w-0">
-                  <div class="selector-option-label">opencode (system PATH)</div>
-                  <div class="flex items-center gap-2 mt-0.5">
-                    <Show when={versionInfo().get("opencode")}>
-                      <span class="selector-badge-version">v{versionInfo().get("opencode")}</span>
-                    </Show>
-                    <Show when={!versionInfo().get("opencode") && validating()}>
-                      <span class="selector-badge-time">Checking...</span>
-                    </Show>
-                    <span class="selector-badge-time">Use binary from system PATH</span>
-                  </div>
-                </div>
-              </div>
+        <Show when={validationError()}>
+          <div class="selector-validation-error">
+            <div class="selector-validation-error-content">
+              <AlertCircle class="selector-validation-error-icon" />
+              <span class="selector-validation-error-text">{validationError()}</span>
             </div>
           </div>
-        </div>
-      </Show>
+        </Show>
+      </div>
 
-      {/* Click outside to close */}
-      <Show when={isOpen()}>
-        <div class="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-      </Show>
+      <div class="panel-list panel-list--fill max-h-80 overflow-y-auto">
+        <For each={binaryOptions()}>
+          {(binary) => {
+            const isDefault = binary.isDefault
+            const versionLabel = () => versionInfo().get(binary.path) ?? binary.version
+
+            return (
+              <div
+                class="panel-list-item flex items-center"
+                classList={{ "panel-list-item-highlight": currentSelectionPath() === binary.path }}
+              >
+                <button
+                  type="button"
+                  class="panel-list-item-content flex-1"
+                  onClick={() => handleSelectBinary(binary.path)}
+                  disabled={props.disabled}
+                >
+                  <div class="flex flex-col flex-1 min-w-0 gap-1.5">
+                    <div class="flex items-center gap-2">
+                      <Check
+                        class={`w-4 h-4 transition-opacity ${currentSelectionPath() === binary.path ? "opacity-100" : "opacity-0"}`}
+                      />
+                      <span class="text-sm font-medium truncate text-primary">{getDisplayName(binary.path)}</span>
+                    </div>
+                    <Show when={!isDefault}>
+                      <div class="text-xs font-mono truncate pl-6 text-muted">{binary.path}</div>
+                    </Show>
+                    <div class="flex items-center gap-2 text-xs text-muted pl-6 flex-wrap">
+                      <Show when={versionLabel()}>
+                        <span class="selector-badge-version">v{versionLabel()}</span>
+                      </Show>
+                      <Show when={isPathValidating(binary.path)}>
+                        <span class="selector-badge-time">Checking…</span>
+                      </Show>
+                      <Show when={!isDefault && binary.lastUsed}>
+                        <span class="selector-badge-time">{formatRelativeTime(binary.lastUsed)}</span>
+                      </Show>
+                      <Show when={isDefault}>
+                        <span class="selector-badge-time">Use binary from system PATH</span>
+                      </Show>
+                    </div>
+                  </div>
+                </button>
+                <Show when={!isDefault}>
+                  <button
+                    type="button"
+                    class="p-2 text-muted hover:text-primary"
+                    onClick={(event) => handleRemoveBinary(binary.path, event)}
+                    disabled={props.disabled}
+                    title="Remove binary"
+                  >
+                    <Trash2 class="w-3.5 h-3.5" />
+                  </button>
+                </Show>
+              </div>
+            )
+          }}
+        </For>
+      </div>
     </div>
   )
 }
