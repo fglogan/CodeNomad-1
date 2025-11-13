@@ -776,6 +776,9 @@ button.button-primary:disabled {
   color: inherit;
 }
 
+.message-text-assistant {
+  white-space: normal;
+}
 
 .message-text pre {
   overflow-x: auto;
