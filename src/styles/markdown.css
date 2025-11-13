@@ -70,7 +70,8 @@
   }
 
   .markdown-body strong {
-    font-weight: var(--font-weight-bold);
+    font-weight: var(--font-weight-regular);
+    color: var(--message-assistant-border);
   }
 
   .markdown-body em {
