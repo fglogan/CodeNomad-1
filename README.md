@@ -8,5 +8,5 @@ Desktop client for running multi-session OpenCode agents on macOS, Windows, and 
 
 ## Downloads
 
-Grab the latest signed installers for macOS, Windows, and Linux from the [GitHub Releases page](https://github.com/shantur/CodeNomad/releases).
+Grab the latest build for macOS, Windows, and Linux from the [GitHub Releases page](https://github.com/shantur/CodeNomad/releases).
 
