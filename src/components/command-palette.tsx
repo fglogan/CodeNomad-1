@@ -7,7 +7,7 @@ interface CommandPaletteProps {
   open: boolean
   onClose: () => void
   commands: Command[]
-  onExecute: (commandId: string) => void
+  onExecute: (command: Command) => void
 }
 
 function buildShortcutString(shortcut: Command["shortcut"]): string {
@@ -30,7 +30,7 @@ const CommandPalette: Component<CommandPaletteProps> = (props) => {
   let inputRef: HTMLInputElement | undefined
   let listRef: HTMLDivElement | undefined
 
-  const categoryOrder = ["Instance", "Session", "Agent & Model", "Input & Focus", "System", "Other"] as const
+  const categoryOrder = ["Custom Commands", "Instance", "Session", "Agent & Model", "Input & Focus", "System", "Other"] as const
 
   type CommandGroup = { category: string; commands: Command[]; startIndex: number }
   type ProcessedCommands = { groups: CommandGroup[]; ordered: Command[] }
@@ -167,13 +167,15 @@ const CommandPalette: Component<CommandPaletteProps> = (props) => {
       e.stopPropagation()
       const index = selectedIndex()
       if (index < 0 || index >= ordered.length) return
-      props.onExecute(ordered[index].id)
+      const command = ordered[index]
+      if (!command) return
+      props.onExecute(command)
       props.onClose()
     }
   }
 
-  function handleCommandClick(commandId: string) {
-    props.onExecute(commandId)
+  function handleCommandClick(command: Command) {
+    props.onExecute(command)
     props.onClose()
   }
 
@@ -241,7 +243,7 @@ const CommandPalette: Component<CommandPaletteProps> = (props) => {
                             <button
                               type="button"
                               data-command-index={commandIndex}
-                              onClick={() => handleCommandClick(command.id)}
+                              onClick={() => handleCommandClick(command)}
                               class={`modal-item ${selectedCommandId() === command.id ? "modal-item-highlight" : ""}`}
                               onPointerMove={(event) => {
                                 if (event.movementX === 0 && event.movementY === 0) return

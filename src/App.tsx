@@ -4,7 +4,7 @@ import { Toaster } from "solid-toast"
 import type { Session } from "./types/session"
 import type { Attachment } from "./types/attachment"
 import type { SDKPart, ClientPart } from "./types/message"
-import type { Permission } from "@opencode-ai/sdk"
+import type { Permission, Command as SDKCommand } from "@opencode-ai/sdk"
 import FolderSelectionView from "./components/folder-selection-view"
 import InstanceWelcomeView from "./components/instance-welcome-view"
 import CommandPalette from "./components/command-palette"
@@ -65,10 +65,12 @@ import {
   getSessionInfo,
   isSessionMessagesLoading,
   fetchSessions,
+  executeCustomCommand,
 } from "./stores/sessions"
 import { isSessionBusy } from "./stores/session-status"
 import { setupTabKeyboardShortcuts } from "./lib/keyboard"
 import { isOpen as isCommandPaletteOpen, showCommandPalette, hideCommandPalette } from "./stores/command-palette"
+import { getCommands as getInstanceCommands } from "./stores/commands"
 import { registerNavigationShortcuts } from "./lib/shortcuts/navigation"
 import { registerInputShortcuts } from "./lib/shortcuts/input"
 import { registerAgentShortcuts } from "./lib/shortcuts/agent"
@@ -846,43 +848,6 @@ const App: Component = () => {
     })
 
     commandRegistry.register({
-      id: "init",
-      label: "Initialize AGENTS.md",
-      description: "Create or update AGENTS.md file",
-      category: "Agent & Model",
-      keywords: ["/init", "agents", "initialize"],
-      action: async () => {
-        const instance = activeInstance()
-        const sessionId = activeSessionIdForInstance()
-        if (!instance || !instance.client || !sessionId || sessionId === "info") return
-
-        const sessions = getSessions(instance.id)
-        const session = sessions.find((s) => s.id === sessionId)
-        if (!session) return
-
-        try {
-          // Generate ID similar to server format: timestamp in hex + random chars
-          const timestamp = Date.now()
-          const timePart = (timestamp * 0x1000).toString(16).padStart(12, "0")
-          const randomPart = Math.random().toString(16).substring(2, 16)
-          const messageID = `msg_${timePart}${randomPart}`
-
-          await instance.client.session.init({
-            path: { id: sessionId },
-            body: {
-              messageID,
-              providerID: session.model.providerId,
-              modelID: session.model.modelId,
-            },
-          })
-          console.log("Initializing AGENTS.md...")
-        } catch (error) {
-          console.error("Failed to initialize AGENTS.md:", error)
-        }
-      },
-    })
-
-    commandRegistry.register({
       id: "clear-input",
       label: "Clear Input",
       description: "Clear the prompt textarea",
@@ -936,8 +901,17 @@ const App: Component = () => {
     refreshCommandPalette()
   }
 
-  function handleExecuteCommand(commandId: string) {
-    commandRegistry.execute(commandId)
+  function handleExecuteCommand(command: Command) {
+    try {
+      const result = command.action?.()
+      if (result instanceof Promise) {
+        void result.catch((error) => {
+          console.error("Command execution failed:", error)
+        })
+      }
+    } catch (error) {
+      console.error("Command execution failed:", error)
+    }
   }
 
 
@@ -952,7 +926,12 @@ const App: Component = () => {
       handleCloseInstance,
       handleNewSession,
       handleCloseSession,
-      showCommandPalette,
+      () => {
+        const instance = activeInstance()
+        if (instance) {
+          showCommandPalette(instance.id)
+        }
+      },
     )
 
     registerNavigationShortcuts()
@@ -1039,7 +1018,7 @@ const App: Component = () => {
         const active = document.activeElement as HTMLElement
         active?.blur()
       },
-      hideCommandPalette,
+      () => hideCommandPalette(),
     )
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1147,104 +1126,122 @@ const App: Component = () => {
             />
 
             <Show when={activeInstance()} keyed>
-              {(instance) => (
-                <>
-                  <Show when={activeSessions().size > 0} fallback={<InstanceWelcomeView instance={instance} />}>
-                    <div class="flex flex-1 min-h-0">
-                      {/* Session Sidebar */}
-                      <div
-                        class="session-sidebar flex flex-col bg-surface-secondary"
-                        style={{ width: `${sessionSidebarWidth()}px` }}
-                      >
-                            <SessionList
-                              instanceId={instance.id}
-                              sessions={activeSessions()}
-                              activeSessionId={activeSessionIdForInstance()}
-                              onSelect={(id) => setActiveSession(instance.id, id)}
-                              onClose={(id) => handleCloseSession(instance.id, id)}
-                              onNew={() => handleNewSession(instance.id)}
-                              showHeader
-                              showFooter={false}
-                              headerContent={
-                                <div class="session-sidebar-header">
-                                  <span class="session-sidebar-title text-sm font-semibold uppercase text-primary">Sessions</span>
-                                  <div class="session-sidebar-shortcuts">
-                                    {(() => {
-                                      const shortcuts = [
-                                        keyboardRegistry.get("session-prev"),
-                                        keyboardRegistry.get("session-next"),
-                                      ].filter((shortcut): shortcut is KeyboardShortcut => Boolean(shortcut))
-                                      return shortcuts.length ? (
-                                        <KeyboardHint shortcuts={shortcuts} separator=" " showDescription={false} />
-                                      ) : null
-                                    })()}
-                                  </div>
-                                </div>
-                              }
+              {(instance) => {
+                const customCommands = createMemo(() =>
+                  buildCustomCommandEntries(instance.id, getInstanceCommands(instance.id)),
+                )
+                const instancePaletteCommands = createMemo(() => [
+                  ...paletteCommands(),
+                  ...customCommands(),
+                ])
+                const paletteOpen = createMemo(() => isCommandPaletteOpen(instance.id))
 
-                              onWidthChange={setSessionSidebarWidth}
-                            />
-
-                        <div class="session-sidebar-separator border-t border-base" />
-                        <Show when={activeSessionForInstance()}>
-                          {(activeSession) => (
-                            <>
-                              <ContextUsagePanel instanceId={instance.id} sessionId={activeSession().id} />
-                              <div class="session-sidebar-controls px-3 py-3 border-r border-base flex flex-col gap-3">
-                                <AgentSelector
-                                  instanceId={instance.id}
-                                  sessionId={activeSession().id}
-                                  currentAgent={activeSession().agent}
-                                  onAgentChange={handleSidebarAgentChange}
-                                />
-
-                                <ModelSelector
-                                  instanceId={instance.id}
-                                  sessionId={activeSession().id}
-                                  currentModel={activeSession().model}
-                                  onModelChange={handleSidebarModelChange}
-                                />
-                              </div>
-                            </>
-                          )}
-                        </Show>
-                      </div>
-                      {/* Main Content Area */}
-                      <div class="content-area flex-1 min-h-0 overflow-hidden flex flex-col">
-                        <Show
-                          when={activeSessionIdForInstance() === "info"}
-                          fallback={
-                            <Show
-                              when={activeSessionIdForInstance()}
-                              keyed
-                              fallback={
-                                <div class="flex items-center justify-center h-full">
-                                  <div class="text-center text-gray-500 dark:text-gray-400">
-                                    <p class="mb-2">No session selected</p>
-                                    <p class="text-sm">Select a session to view messages</p>
-                                  </div>
-                                </div>
-                              }
-                            >
-                              {(sessionId) => (
-                                <SessionView
-                                  sessionId={sessionId}
-                                  activeSessions={activeSessions()}
-                                  instanceId={instance.id}
-                                  instanceFolder={instance.folder}
-                                  escapeInDebounce={escapeInDebounce()}
-                                />
-                              )}
-                            </Show>
-                          }
+                return (
+                  <>
+                    <Show when={activeSessions().size > 0} fallback={<InstanceWelcomeView instance={instance} />}>
+                      <div class="flex flex-1 min-h-0">
+                        {/* Session Sidebar */}
+                        <div
+                          class="session-sidebar flex flex-col bg-surface-secondary"
+                          style={{ width: `${sessionSidebarWidth()}px` }}
                         >
-                          <InfoView instanceId={instance.id} />
-                        </Show>
+                              <SessionList
+                                instanceId={instance.id}
+                                sessions={activeSessions()}
+                                activeSessionId={activeSessionIdForInstance()}
+                                onSelect={(id) => setActiveSession(instance.id, id)}
+                                onClose={(id) => handleCloseSession(instance.id, id)}
+                                onNew={() => handleNewSession(instance.id)}
+                                showHeader
+                                showFooter={false}
+                                headerContent={
+                                  <div class="session-sidebar-header">
+                                    <span class="session-sidebar-title text-sm font-semibold uppercase text-primary">Sessions</span>
+                                    <div class="session-sidebar-shortcuts">
+                                      {(() => {
+                                        const shortcuts = [
+                                          keyboardRegistry.get("session-prev"),
+                                          keyboardRegistry.get("session-next"),
+                                        ].filter((shortcut): shortcut is KeyboardShortcut => Boolean(shortcut))
+                                        return shortcuts.length ? (
+                                          <KeyboardHint shortcuts={shortcuts} separator=" " showDescription={false} />
+                                        ) : null
+                                      })()}
+                                    </div>
+                                  </div>
+                                }
+
+                                onWidthChange={setSessionSidebarWidth}
+                              />
+
+                          <div class="session-sidebar-separator border-t border-base" />
+                          <Show when={activeSessionForInstance()}>
+                            {(activeSession) => (
+                              <>
+                                <ContextUsagePanel instanceId={instance.id} sessionId={activeSession().id} />
+                                <div class="session-sidebar-controls px-3 py-3 border-r border-base flex flex-col gap-3">
+                                  <AgentSelector
+                                    instanceId={instance.id}
+                                    sessionId={activeSession().id}
+                                    currentAgent={activeSession().agent}
+                                    onAgentChange={handleSidebarAgentChange}
+                                  />
+
+                                  <ModelSelector
+                                    instanceId={instance.id}
+                                    sessionId={activeSession().id}
+                                    currentModel={activeSession().model}
+                                    onModelChange={handleSidebarModelChange}
+                                  />
+                                </div>
+                              </>
+                            )}
+                          </Show>
+                        </div>
+                        {/* Main Content Area */}
+                        <div class="content-area flex-1 min-h-0 overflow-hidden flex flex-col">
+                          <Show
+                            when={activeSessionIdForInstance() === "info"}
+                            fallback={
+                              <Show
+                                when={activeSessionIdForInstance()}
+                                keyed
+                                fallback={
+                                  <div class="flex items-center justify-center h-full">
+                                    <div class="text-center text-gray-500 dark:text-gray-400">
+                                      <p class="mb-2">No session selected</p>
+                                      <p class="text-sm">Select a session to view messages</p>
+                                    </div>
+                                  </div>
+                                }
+                              >
+                                {(sessionId) => (
+                                  <SessionView
+                                    sessionId={sessionId}
+                                    activeSessions={activeSessions()}
+                                    instanceId={instance.id}
+                                    instanceFolder={instance.folder}
+                                    escapeInDebounce={escapeInDebounce()}
+                                  />
+                                )}
+                              </Show>
+                            }
+                          >
+                            <InfoView instanceId={instance.id} />
+                          </Show>
+                        </div>
                       </div>
-                    </div>
-                  </Show>
-                </>
-              )}
+                    </Show>
+
+                    <CommandPalette
+                      open={paletteOpen()}
+                      onClose={() => hideCommandPalette(instance.id)}
+                      commands={instancePaletteCommands()}
+                      onExecute={handleExecuteCommand}
+                    />
+                  </>
+                )
+              }}
             </Show>
           </>
         }
@@ -1258,12 +1255,6 @@ const App: Component = () => {
         />
       </Show>
 
-      <CommandPalette
-        open={isCommandPaletteOpen()}
-        onClose={hideCommandPalette}
-        commands={paletteCommands()}
-        onExecute={handleExecuteCommand}
-      />
 
       <Show when={showFolderSelection()}>
         <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
@@ -1308,6 +1299,54 @@ const App: Component = () => {
     </div>
     </>
   )
+}
+
+function commandRequiresArguments(template?: string) {
+  if (!template) return false
+  return /\$(?:\d+|ARGUMENTS)/.test(template)
+}
+
+function promptForCommandArguments(command: SDKCommand.Info) {
+  if (!commandRequiresArguments(command.template)) {
+    return ""
+  }
+  const input = window.prompt(`Arguments for /${command.name}`, "")
+  if (input === null) {
+    return null
+  }
+  return input
+}
+
+function formatCommandLabel(name: string) {
+  if (!name) return ""
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
+function buildCustomCommandEntries(instanceId: string, commands: SDKCommand.Info[]): Command[] {
+  return commands.map((cmd) => ({
+    id: `custom:${instanceId}:${cmd.name}`,
+    label: formatCommandLabel(cmd.name),
+    description: cmd.description ?? "Custom command",
+    category: "Custom Commands",
+    keywords: [cmd.name, ...(cmd.description ? cmd.description.split(/\s+/).filter(Boolean) : [])],
+    action: async () => {
+      const sessionId = activeSessionId().get(instanceId)
+      if (!sessionId || sessionId === "info") {
+        alert("Select a session before running a custom command.")
+        return
+      }
+      const args = promptForCommandArguments(cmd)
+      if (args === null) {
+        return
+      }
+      try {
+        await executeCustomCommand(instanceId, sessionId, cmd.name, args)
+      } catch (error) {
+        console.error("Failed to run custom command:", error)
+        alert("Failed to run custom command. Check the console for details.")
+      }
+    },
+  }))
 }
 
 export default App

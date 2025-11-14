@@ -2029,6 +2029,48 @@ async function sendMessage(
   }
 }
 
+async function executeCustomCommand(
+  instanceId: string,
+  sessionId: string,
+  commandName: string,
+  args: string,
+): Promise<void> {
+  const instance = instances().get(instanceId)
+  if (!instance || !instance.client) {
+    throw new Error("Instance not ready")
+  }
+
+  const session = sessions().get(instanceId)?.get(sessionId)
+  if (!session) {
+    throw new Error("Session not found")
+  }
+
+  const body: {
+    command: string
+    arguments: string
+    messageID: string
+    agent?: string
+    model?: string
+  } = {
+    command: commandName,
+    arguments: args,
+    messageID: createId("msg"),
+  }
+
+  if (session.agent) {
+    body.agent = session.agent
+  }
+
+  if (session.model.providerId && session.model.modelId) {
+    body.model = `${session.model.providerId}/${session.model.modelId}`
+  }
+
+  await instance.client.session.command({
+    path: { id: sessionId },
+    body,
+  })
+}
+
 async function abortSession(instanceId: string, sessionId: string): Promise<void> {
   const instance = instances().get(instanceId)
   if (!instance || !instance.client) {
@@ -2266,4 +2308,5 @@ export {
   setSessionDraftPrompt,
   clearSessionDraftPrompt,
   clearInstanceDraftPrompts,
+  executeCustomCommand,
 }

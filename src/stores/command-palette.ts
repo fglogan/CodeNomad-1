@@ -1,17 +1,36 @@
 import { createSignal } from "solid-js"
 
-const [isOpen, setIsOpen] = createSignal(false)
+const [openStates, setOpenStates] = createSignal<Map<string, boolean>>(new Map())
 
-export function showCommandPalette() {
-  setIsOpen(true)
+function updateState(instanceId: string, open: boolean) {
+  setOpenStates((prev) => {
+    const next = new Map(prev)
+    next.set(instanceId, open)
+    return next
+  })
 }
 
-export function hideCommandPalette() {
-  setIsOpen(false)
+export function showCommandPalette(instanceId: string) {
+  if (!instanceId) return
+  updateState(instanceId, true)
 }
 
-export function toggleCommandPalette() {
-  setIsOpen(!isOpen())
+export function hideCommandPalette(instanceId?: string) {
+  if (!instanceId) {
+    setOpenStates(new Map())
+    return
+  }
+  updateState(instanceId, false)
 }
 
-export { isOpen }
+export function toggleCommandPalette(instanceId: string) {
+  if (!instanceId) return
+  const current = openStates().get(instanceId) ?? false
+  updateState(instanceId, !current)
+}
+
+export function isOpen(instanceId: string): boolean {
+  return openStates().get(instanceId) ?? false
+}
+
+export { openStates }

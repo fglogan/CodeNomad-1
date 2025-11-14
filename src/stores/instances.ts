@@ -10,6 +10,7 @@ import {
   removeSessionIndexes,
   clearInstanceDraftPrompts,
 } from "./sessions"
+import { fetchCommands, clearCommands } from "./commands"
 import { preferences, updateLastUsedBinary } from "./preferences"
 import { setHasInstances } from "./ui"
 
@@ -139,6 +140,7 @@ function removeInstance(id: string) {
   })
 
   removeLogContainer(id)
+  clearCommands(id)
 
   if (activeInstanceId() === id) {
     setActiveInstanceId(nextActiveId)
@@ -194,6 +196,7 @@ async function createInstance(folder: string, binaryPath?: string): Promise<stri
       await fetchSessions(id)
       await fetchAgents(id)
       await fetchProviders(id)
+      await fetchCommands(id, client)
     } catch (error) {
       console.error("Failed to fetch initial data:", error)
     }
