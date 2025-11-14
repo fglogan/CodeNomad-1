@@ -380,7 +380,9 @@ export default function MessageStream(props: MessageStreamProps) {
 
         const toolSignature = createToolSignature(message, toolPart, originalIndex, messageInfo)
         const contentKey = createToolContentKey(toolPart, messageInfo)
+        tokenSegments.push(`tool:${toolKey}:${partVersion}`)
         const toolEntry = toolItemCache.get(toolKey)
+
         if (toolEntry && toolEntry.signature === toolSignature) {
           if (toolEntry.contentKey !== contentKey) {
             const updatedItem: ToolDisplayItem = {
