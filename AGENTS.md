@@ -7,3 +7,10 @@
 - Prefer smaller, focused style files (≈150 lines or less) over large monoliths. Split by component or feature area if a file grows beyond that size.
 - Co-locate reusable UI patterns (buttons, selectors, dropdowns, etc.) under `src/styles/components/` and avoid redefining the same utility classes elsewhere.
 - Document any new styling conventions or directory additions in this file so future changes remain consistent.
+
+## Coding Principles
+- Favor KISS by keeping modules narrowly scoped and limiting public APIs to what callers actually need.
+- Uphold DRY: share helpers via dedicated modules before copy/pasting logic across stores, components, or scripts.
+- Enforce single responsibility; split large files when concerns diverge (state, actions, API, events, etc.).
+- Prefer composable primitives (signals, hooks, utilities) over deep inheritance or implicit global state.
+- When adding platform integrations (SSE, IPC, SDK), isolate them in thin adapters that surface typed events/actions.
