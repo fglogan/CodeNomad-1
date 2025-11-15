@@ -2,6 +2,7 @@ import { createSignal, Show, onMount, For, onCleanup, createEffect, on, untrack 
 import UnifiedPicker from "./unified-picker"
 import { addToHistory, getHistory } from "../stores/message-history"
 import { getAttachments, addAttachment, clearAttachments, removeAttachment } from "../stores/attachments"
+import { resolvePastedPlaceholders } from "../lib/prompt-placeholders"
 import { createFileAttachment, createTextAttachment, createAgentAttachment } from "../types/attachment"
 import type { Attachment } from "../types/attachment"
 import type { Agent } from "../types/session"
@@ -465,6 +466,8 @@ export default function PromptInput(props: PromptInputProps) {
     const currentAttachments = attachments()
     if (!text || props.disabled) return
 
+    const resolvedPrompt = resolvePastedPlaceholders(text, currentAttachments)
+
     clearPrompt()
     clearAttachments(props.instanceId, props.sessionId)
     setIgnoredAtPositions(new Set<number>())
@@ -473,7 +476,7 @@ export default function PromptInput(props: PromptInputProps) {
     setHistoryDraft(null)
 
     try {
-      await addToHistory(props.instanceFolder, text)
+      await addToHistory(props.instanceFolder, resolvedPrompt)
       const updated = await getHistory(props.instanceFolder)
       setHistory(updated)
       setHistoryIndex(-1)

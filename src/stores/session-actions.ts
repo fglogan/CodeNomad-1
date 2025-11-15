@@ -1,6 +1,8 @@
 import type { Message } from "../types/message"
 
+import { resolvePastedPlaceholders } from "../lib/prompt-placeholders"
 import { instances } from "./instances"
+
 import {
   addRecentModelPreference,
   preferences,
@@ -60,41 +62,6 @@ function createId(prefix: string): string {
   const random = randomBase62(ID_LENGTH - 12)
 
   return `${prefix}_${hex}${random}`
-}
-
-function resolvePastedPlaceholders(prompt: string, attachments: any[] = []): string {
-  if (!prompt || !prompt.includes("[pasted #")) {
-    return prompt
-  }
-
-  if (!attachments || attachments.length === 0) {
-    return prompt
-  }
-
-  const lookup = new Map<string, string>()
-
-  for (const attachment of attachments) {
-    const source = attachment?.source
-    if (!source || source.type !== "text") continue
-    const display: string | undefined = attachment?.display
-    const value: unknown = source.value
-    if (typeof display !== "string" || typeof value !== "string") continue
-    const match = display.match(/pasted #(\d+)/)
-    if (!match) continue
-    const placeholder = `[pasted #${match[1]}]`
-    if (!lookup.has(placeholder)) {
-      lookup.set(placeholder, value)
-    }
-  }
-
-  if (lookup.size === 0) {
-    return prompt
-  }
-
-  return prompt.replace(/\[pasted #(\d+)\]/g, (fullMatch) => {
-    const replacement = lookup.get(fullMatch)
-    return typeof replacement === "string" ? replacement : fullMatch
-  })
 }
 
 async function sendMessage(

@@ -1306,7 +1306,7 @@ function commandRequiresArguments(template?: string) {
   return /\$(?:\d+|ARGUMENTS)/.test(template)
 }
 
-function promptForCommandArguments(command: SDKCommand.Info) {
+function promptForCommandArguments(command: SDKCommand) {
   if (!commandRequiresArguments(command.template)) {
     return ""
   }
@@ -1322,7 +1322,7 @@ function formatCommandLabel(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
-function buildCustomCommandEntries(instanceId: string, commands: SDKCommand.Info[]): Command[] {
+function buildCustomCommandEntries(instanceId: string, commands: SDKCommand[]): Command[] {
   return commands.map((cmd) => ({
     id: `custom:${instanceId}:${cmd.name}`,
     label: formatCommandLabel(cmd.name),

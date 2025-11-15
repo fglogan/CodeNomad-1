@@ -2,7 +2,7 @@ import { createSignal } from "solid-js"
 import type { Command as SDKCommand } from "@opencode-ai/sdk"
 import type { OpencodeClient } from "@opencode-ai/sdk/client"
 
-const [commandMap, setCommandMap] = createSignal<Map<string, SDKCommand.Info[]>>(new Map())
+const [commandMap, setCommandMap] = createSignal<Map<string, SDKCommand[]>>(new Map())
 
 export async function fetchCommands(instanceId: string, client: OpencodeClient): Promise<void> {
   const response = await client.command.list()
@@ -14,7 +14,7 @@ export async function fetchCommands(instanceId: string, client: OpencodeClient):
   })
 }
 
-export function getCommands(instanceId: string): SDKCommand.Info[] {
+export function getCommands(instanceId: string): SDKCommand[] {
   return commandMap().get(instanceId) ?? []
 }
 
