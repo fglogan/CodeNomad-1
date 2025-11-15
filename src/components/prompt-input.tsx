@@ -23,6 +23,7 @@ export default function PromptInput(props: PromptInputProps) {
   const [prompt, setPromptInternal] = createSignal("")
   const [history, setHistory] = createSignal<string[]>([])
   const [historyIndex, setHistoryIndex] = createSignal(-1)
+  const [historyDraft, setHistoryDraft] = createSignal<string | null>(null)
   const [isFocused, setIsFocused] = createSignal(false)
   const [showPicker, setShowPicker] = createSignal(false)
   const [searchQuery, setSearchQuery] = createSignal("")
@@ -48,6 +49,7 @@ export default function PromptInput(props: PromptInputProps) {
   const clearPrompt = () => {
     clearSessionDraftPrompt(props.instanceId, props.sessionId)
     setPromptInternal("")
+    setHistoryDraft(null)
   }
 
   function syncAttachmentCounters(currentPrompt: string, sessionAttachments: Attachment[]) {
@@ -110,6 +112,7 @@ export default function PromptInput(props: PromptInputProps) {
         setPromptInternal(storedPrompt)
         setSessionDraftPrompt(instanceId, sessionId, storedPrompt)
         setHistoryIndex(-1)
+        setHistoryDraft(null)
         setIgnoredAtPositions(new Set<number>())
         setShowPicker(false)
         setAtPosition(null)
@@ -433,6 +436,9 @@ export default function PromptInput(props: PromptInputProps) {
 
     if (e.key === "ArrowUp" && !showPicker() && atStart && currentHistory.length > 0) {
       e.preventDefault()
+      if (historyIndex() === -1) {
+        setHistoryDraft(prompt())
+      }
       const newIndex = historyIndex() === -1 ? 0 : Math.min(historyIndex() + 1, currentHistory.length - 1)
       setHistoryIndex(newIndex)
       setPrompt(currentHistory[newIndex])
@@ -447,7 +453,9 @@ export default function PromptInput(props: PromptInputProps) {
         setPrompt(currentHistory[newIndex])
       } else {
         setHistoryIndex(-1)
-        setPrompt("")
+        const draft = historyDraft()
+        setPrompt(draft ?? "")
+        setHistoryDraft(null)
       }
     }
   }
@@ -462,6 +470,7 @@ export default function PromptInput(props: PromptInputProps) {
     setIgnoredAtPositions(new Set<number>())
     setPasteCount(0)
     setImageCount(0)
+    setHistoryDraft(null)
 
     try {
       await addToHistory(props.instanceFolder, text)
@@ -482,6 +491,7 @@ export default function PromptInput(props: PromptInputProps) {
     const value = target.value
     setPrompt(value)
     setHistoryIndex(-1)
+    setHistoryDraft(null)
 
     const cursorPos = target.selectionStart
     const textBeforeCursor = value.substring(0, cursorPos)
