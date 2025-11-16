@@ -6,12 +6,13 @@ import {
   MessagePartRemovedEvent 
 } from "../types/message"
 import type {
-  EventSessionUpdated,
+  EventLspUpdated,
+  EventPermissionReplied,
+  EventPermissionUpdated,
   EventSessionCompacted,
   EventSessionError,
   EventSessionIdle,
-  EventPermissionUpdated,
-  EventPermissionReplied
+  EventSessionUpdated,
 } from "@opencode-ai/sdk"
 
 interface SSEConnection {
@@ -44,6 +45,7 @@ type SSEEvent =
   | EventSessionIdle
   | EventPermissionUpdated
   | EventPermissionReplied
+  | EventLspUpdated
   | TuiToastEvent
   | { type: string; properties?: Record<string, unknown> } // Fallback for unknown event types
 
@@ -148,6 +150,9 @@ class SSEManager {
       case "permission.replied":
         this.onPermissionReplied?.(instanceId, event as EventPermissionReplied)
         break
+      case "lsp.updated":
+        this.onLspUpdated?.(instanceId, event as EventLspUpdated)
+        break
       default:
         console.warn("[SSE] Unknown event type:", event.type)
     }
@@ -217,6 +222,7 @@ class SSEManager {
   onSessionIdle?: (instanceId: string, event: EventSessionIdle) => void
   onPermissionUpdated?: (instanceId: string, event: EventPermissionUpdated) => void
   onPermissionReplied?: (instanceId: string, event: EventPermissionReplied) => void
+  onLspUpdated?: (instanceId: string, event: EventLspUpdated) => void
   onConnectionLost?: (instanceId: string, reason: string) => void | Promise<void>
 
   getStatus(instanceId: string): "connecting" | "connected" | "disconnected" | "error" | null {

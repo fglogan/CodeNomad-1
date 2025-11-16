@@ -1,5 +1,5 @@
 import type { OpencodeClient } from "@opencode-ai/sdk/client"
-import type { Project as SDKProject } from "@opencode-ai/sdk"
+import type { LspStatus, Project as SDKProject } from "@opencode-ai/sdk"
 
 export interface LogEntry {
   timestamp: number
@@ -24,6 +24,7 @@ export type RawMcpStatus = Record<string, {
 export interface InstanceMetadata {
   project?: ProjectInfo
   mcpStatus?: RawMcpStatus
+  lspStatus?: LspStatus[]
   version?: string
 }
 

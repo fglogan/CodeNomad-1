@@ -1,6 +1,6 @@
 import { Component, Show, For, createSignal, createEffect, onCleanup } from "solid-js"
 import type { Instance, RawMcpStatus } from "../types/instance"
-import { updateInstance } from "../stores/instances"
+import { fetchLspStatus, updateInstance } from "../stores/instances"
 
 interface InstanceInfoProps {
   instance: Instance
@@ -52,6 +52,7 @@ const InstanceInfo: Component<InstanceInfoProps> = (props) => {
     const status = metadata()?.mcpStatus
     return status ? parseMcpStatus(status) : []
   }
+  const lspServers = () => metadata()?.lspStatus ?? []
 
   createEffect(() => {
     const instance = props.instance
@@ -82,9 +83,10 @@ const InstanceInfo: Component<InstanceInfoProps> = (props) => {
 
     void (async () => {
       try {
-        const [projectResult, mcpResult] = await Promise.allSettled([
+        const [projectResult, mcpResult, lspResult] = await Promise.allSettled([
           client.project.current(),
           client.mcp.status(),
+          fetchLspStatus(instanceId),
         ])
 
         if (cancelled) {
@@ -93,11 +95,13 @@ const InstanceInfo: Component<InstanceInfoProps> = (props) => {
 
         const project = projectResult.status === "fulfilled" ? projectResult.value.data : undefined
         const mcpStatus = mcpResult.status === "fulfilled" ? (mcpResult.value.data as RawMcpStatus) : undefined
+        const lspStatus = lspResult.status === "fulfilled" ? lspResult.value ?? [] : undefined
 
         const nextMetadata = {
           ...(instance.metadata ?? {}),
           ...(project ? { project } : {}),
           ...(mcpStatus ? { mcpStatus } : {}),
+          ...(lspStatus ? { lspStatus } : {}),
         }
 
         if (!nextMetadata.version) {
@@ -206,6 +210,34 @@ const InstanceInfo: Component<InstanceInfoProps> = (props) => {
                     <span class="text-xs font-mono flex-1 text-secondary" title={value}>
                       {value}
                     </span>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
+
+        <Show when={!isLoadingMetadata() && lspServers().length > 0}>
+          <div>
+            <div class="text-xs font-medium text-muted uppercase tracking-wide mb-1.5">
+              LSP Servers
+            </div>
+            <div class="space-y-1.5">
+              <For each={lspServers()}>
+                {(server) => (
+                  <div class="px-2 py-1.5 rounded border bg-surface-secondary border-base">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="flex flex-col flex-1 min-w-0">
+                        <span class="text-xs text-primary font-medium truncate">{server.name ?? server.id}</span>
+                        <span class="text-[11px] text-secondary truncate" title={server.root}>
+                          {server.root}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-1.5 flex-shrink-0 text-xs text-secondary">
+                        <div class={`status-dot ${server.status === "connected" ? "ready animate-pulse" : "error"}`} />
+                        <span>{server.status === "connected" ? "Connected" : "Error"}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </For>

@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js"
 import type { Instance, LogEntry } from "../types/instance"
-import type { Permission } from "@opencode-ai/sdk"
+import type { LspStatus, Permission } from "@opencode-ai/sdk"
 import type { ClientPart, Message } from "../types/message"
 import { sdkManager } from "../lib/sdk-manager"
 import { sseManager } from "../lib/sse-manager"
@@ -231,6 +231,26 @@ async function stopInstance(id: string) {
   }
 
   removeInstance(id)
+}
+
+async function fetchLspStatus(instanceId: string): Promise<LspStatus[] | undefined> {
+  const instance = instances().get(instanceId)
+  if (!instance) {
+    console.warn(`[LSP] Skipping fetch; instance ${instanceId} not found`)
+    return undefined
+  }
+  if (!instance.client) {
+    console.warn(`[LSP] Skipping fetch; instance ${instanceId} client not ready`)
+    return undefined
+  }
+  const lsp = instance.client.lsp
+  if (!lsp?.status) {
+    console.warn(`[LSP] Skipping fetch; lsp.status API unavailable for instance ${instanceId}`)
+    return undefined
+  }
+  console.log(`[HTTP] GET /lsp.status for instance ${instanceId}`)
+  const response = await lsp.status()
+  return response.data ?? []
 }
 
 function getActiveInstance(): Instance | null {
@@ -546,6 +566,29 @@ sseManager.onConnectionLost = (instanceId, reason) => {
   })
 }
 
+sseManager.onLspUpdated = async (instanceId) => {
+  console.log(`[LSP] Received lsp.updated event for instance ${instanceId}`)
+  try {
+    const lspStatus = await fetchLspStatus(instanceId)
+    if (!lspStatus) {
+      return
+    }
+    const instance = instances().get(instanceId)
+    if (!instance) {
+      console.warn(`[LSP] Instance ${instanceId} disappeared before metadata update`)
+      return
+    }
+    updateInstance(instanceId, {
+      metadata: {
+        ...(instance.metadata ?? {}),
+        lspStatus,
+      },
+    })
+  } catch (error) {
+    console.error("Failed to refresh LSP status:", error)
+  }
+}
+
 async function acknowledgeDisconnectedInstance(): Promise<void> {
   const pending = disconnectedInstance()
   if (!pending) {
@@ -593,4 +636,5 @@ export {
   sendPermissionResponse,
   disconnectedInstance,
   acknowledgeDisconnectedInstance,
+  fetchLspStatus,
 }
