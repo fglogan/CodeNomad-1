@@ -1,0 +1,124 @@
+{
+  "name": "@codenomad/electron-app",
+  "version": "0.1.2",
+  "description": "CodeNomad - AI coding assistant",
+  "author": {
+    "name": "Shantur Rathore",
+    "email": "codenomad@shantur.com"
+  },
+  "type": "module",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "dev:electron": "NODE_ENV=development electron .",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "preview": "electron-vite preview",
+    "build:binaries": "node scripts/build.js",
+    "build:mac": "node scripts/build.js mac",
+    "build:mac-x64": "node scripts/build.js mac-x64",
+    "build:mac-arm64": "node scripts/build.js mac-arm64",
+    "build:win": "node scripts/build.js win",
+    "build:win-arm64": "node scripts/build.js win-arm64",
+    "build:linux": "node scripts/build.js linux",
+    "build:linux-arm64": "node scripts/build.js linux-arm64",
+    "build:linux-rpm": "node scripts/build.js linux-rpm",
+    "build:all": "node scripts/build.js all",
+    "package:mac": "electron-builder --mac",
+    "package:win": "electron-builder --win",
+    "package:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "@codenomad/ui": "file:../ui",
+    "ignore": "7.0.5"
+  },
+  "devDependencies": {
+    "7zip-bin": "^5.2.0",
+    "app-builder-bin": "^4.2.0",
+    "electron": "39.0.0",
+    "electron-builder": "^24.0.0",
+    "electron-vite": "4.0.1",
+    "png2icons": "^2.0.1",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-plugin-solid": "^2.10.0"
+  },
+  "build": {
+    "appId": "ai.opencode.client",
+    "productName": "CodeNomad",
+    "directories": {
+      "output": "release",
+      "buildResources": "electron/resources"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64", "universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64", "universal"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+      "icon": "electron/resources/icon.icns"
+    },
+    "dmg": {
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+      "icon": "electron/resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "rpm",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "tar.gz",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+      "category": "Development",
+      "icon": "electron/resources/icon.png"
+    }
+  },
+  "private": true
+}

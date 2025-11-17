@@ -1,5 +1,13 @@
+import { dirname, resolve } from "path"
+import { fileURLToPath } from "url"
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 export default {
-  content: ["./src/**/*.{ts,tsx}", "./src/renderer/**/*.html"],
+  content: [
+    resolve(__dirname, "src/**/*.{ts,tsx}"),
+    resolve(__dirname, "src/renderer/**/*.html"),
+  ],
   darkMode: ["class", '[data-theme="dark"]'],
   theme: {
     extend: {

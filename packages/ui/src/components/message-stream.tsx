@@ -34,7 +34,7 @@ import { useConfig } from "../stores/preferences"
 import { getSessionInfo, computeDisplayParts, sessions, setActiveSession, setActiveParentSession } from "../stores/sessions"
 import { setActiveInstanceId } from "../stores/instances"
 
-const codeNomadLogo = new URL("../../images/CodeNomad-Icon.png", import.meta.url).href
+const codeNomadLogo = new URL("../images/CodeNomad-Icon.png", import.meta.url).href
 const SCROLL_OFFSET = 64
 const SCROLL_DIRECTION_THRESHOLD = 10
 

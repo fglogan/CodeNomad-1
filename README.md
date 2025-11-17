@@ -22,6 +22,15 @@ CodeNomad is built for people who live inside OpenCode for hours on end and need
 
 - [OpenCode CLI](https://opencode.ai) installed and available in your `PATH`, or point CodeNomad to a local binary through Advanced Settings.
 
+## Repository Layout
+
+CodeNomad now ships as a small workspace with two packages:
+
+- `packages/ui` — SolidJS renderer, Tailwind styles, and standalone Vite configuration for building the UI bundle independently.
+- `packages/electron-app` — Electron main/preload processes plus packaging scripts. It consumes the UI package during development/build via `electron-vite`.
+
+Use `npm run dev --workspace @codenomad/electron-app` for the Electron shell and `npm run dev --workspace @codenomad/ui` for UI-only work. Working with the workspace requires Node.js 18+ with npm 7 or newer so the workspace protocol is available.
+
 ## Downloads
 
 Grab the latest build for macOS, Windows, and Linux from the [GitHub Releases page](https://github.com/shantur/CodeNomad/releases).

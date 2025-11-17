@@ -2,6 +2,11 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite"
 import solid from "vite-plugin-solid"
 import { resolve } from "path"
 
+const uiRoot = resolve(__dirname, "../ui")
+const uiSrc = resolve(uiRoot, "src")
+const uiRendererRoot = resolve(uiRoot, "src/renderer")
+const uiRendererEntry = resolve(uiRendererRoot, "index.html")
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -33,21 +38,24 @@ export default defineConfig({
     },
   },
   renderer: {
-    root: "./src/renderer",
+    root: uiRendererRoot,
     plugins: [solid()],
     css: {
-      postcss: "./postcss.config.js",
+      postcss: resolve(uiRoot, "postcss.config.js"),
     },
     resolve: {
       alias: {
-        "@": resolve(__dirname, "./src"),
+        "@": uiSrc,
       },
     },
     server: {
       port: 3000,
     },
     build: {
-      outDir: "dist/renderer",
+      outDir: resolve(__dirname, "dist/renderer"),
+      rollupOptions: {
+        input: uiRendererEntry,
+      },
     },
   },
 })

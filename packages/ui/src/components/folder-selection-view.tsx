@@ -4,7 +4,7 @@ import { useConfig } from "../stores/preferences"
 import AdvancedSettingsModal from "./advanced-settings-modal"
 import Kbd from "./kbd"
 
-const codeNomadLogo = new URL("../../images/CodeNomad-Icon.png", import.meta.url).href
+const codeNomadLogo = new URL("../images/CodeNomad-Icon.png", import.meta.url).href
 
 interface FolderSelectionViewProps {
   onSelectFolder: (folder?: string, binaryPath?: string) => void

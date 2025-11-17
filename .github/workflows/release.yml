@@ -79,10 +79,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --workspaces
 
       - name: Build macOS binaries
-        run: npm run build:mac
+        run: npm run build:mac --workspace @codenomad/electron-app
 
       - name: Upload release assets
         env:
@@ -91,7 +91,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          for file in release/*; do
+          for file in packages/electron-app/release/*; do
             [ -f "$file" ] || continue
             case "$file" in
               *.dmg|*.zip)
@@ -119,10 +119,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --workspaces
 
       - name: Build Windows binaries
-        run: npm run build:win
+        run: npm run build:win --workspace @codenomad/electron-app
 
       - name: Upload release assets
         shell: pwsh
@@ -130,7 +130,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
-          Get-ChildItem -Path "release" -File | Where-Object {
+          Get-ChildItem -Path "packages/electron-app/release" -File | Where-Object {
             $_.Name -match '\.(exe|zip)$'
           } | ForEach-Object {
             gh release upload $env:TAG $_.FullName --clobber
@@ -152,10 +152,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --workspaces
 
       - name: Build Linux binaries
-        run: npm run build:linux
+        run: npm run build:linux --workspace @codenomad/electron-app
 
       - name: Upload release assets
         env:
@@ -164,7 +164,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          for file in release/*; do
+          for file in packages/electron-app/release/*; do
             [ -f "$file" ] || continue
             case "$file" in
               *.AppImage|*.deb|*.tar.gz)
@@ -198,10 +198,10 @@ jobs:
           sudo gem install --no-document fpm
 
       - name: Install project dependencies
-        run: npm ci
+        run: npm ci --workspaces
 
       - name: Build Linux RPM binaries
-        run: npm run build:linux-rpm
+        run: npm run build:linux-rpm --workspace @codenomad/electron-app
 
       - name: Upload RPM release assets
         env:
@@ -210,7 +210,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          for file in release/*.rpm; do
+          for file in packages/electron-app/release/*.rpm; do
             [ -f "$file" ] || continue
             gh release upload "$TAG" "$file" --clobber
           done
