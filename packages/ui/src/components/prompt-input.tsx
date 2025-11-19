@@ -722,7 +722,7 @@ export default function PromptInput(props: PromptInputProps) {
 
       const createAndStoreAttachment = (previewUrl?: string) => {
         const attachment = createFileAttachment(path, filename, mime, undefined, props.instanceFolder)
-        if (previewUrl && mime.startsWith("image/")) {
+        if (previewUrl && (mime.startsWith("image/") || mime.startsWith("text/"))) {
           attachment.url = previewUrl
         }
         addAttachment(props.instanceId, props.sessionId, attachment)
@@ -733,6 +733,13 @@ export default function PromptInput(props: PromptInputProps) {
         reader.onload = () => {
           const result = typeof reader.result === "string" ? reader.result : undefined
           createAndStoreAttachment(result)
+        }
+        reader.readAsDataURL(file)
+      } else if (mime.startsWith("text/") && typeof FileReader !== "undefined") {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const dataUrl = typeof reader.result === "string" ? reader.result : undefined
+          createAndStoreAttachment(dataUrl)
         }
         reader.readAsDataURL(file)
       } else {

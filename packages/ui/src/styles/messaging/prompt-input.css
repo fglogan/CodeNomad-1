@@ -132,10 +132,12 @@
   display: block;
 }
 
-.attachment-remove {
+.attachment-remove,
+.attachment-download {
   @apply ml-0.5 flex h-4 w-4 items-center justify-center rounded transition-colors;
 }
 
-.attachment-remove:hover {
+.attachment-remove:hover,
+.attachment-download:hover {
   background-color: var(--attachment-chip-ring);
 }

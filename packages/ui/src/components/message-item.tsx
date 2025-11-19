@@ -21,7 +21,79 @@ export default function MessageItem(props: MessageItemProps) {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
-  const messageParts = () => props.parts ?? props.message.parts
+  type FilePart = Extract<ClientPart, { type: "file" }> & {
+    url?: string
+    mime?: string
+    filename?: string
+  }
+
+  const displayParts = () => props.parts ?? props.message.parts
+
+  const fileAttachments = () =>
+    props.message.parts.filter((part): part is FilePart => part?.type === "file" && typeof (part as FilePart).url === "string")
+
+  const getAttachmentName = (part: FilePart) => {
+    if (part.filename && part.filename.trim().length > 0) {
+      return part.filename
+    }
+    const url = part.url || ""
+    if (url.startsWith("data:")) {
+      return "attachment"
+    }
+    try {
+      const parsed = new URL(url)
+      const segments = parsed.pathname.split("/")
+      return segments.pop() || "attachment"
+    } catch (error) {
+      const fallback = url.split("/").pop()
+      return fallback && fallback.length > 0 ? fallback : "attachment"
+    }
+  }
+
+  const isImageAttachment = (part: FilePart) => {
+    if (part.mime && typeof part.mime === "string" && part.mime.startsWith("image/")) {
+      return true
+    }
+    return typeof part.url === "string" && part.url.startsWith("data:image/")
+  }
+
+  const handleAttachmentDownload = async (part: FilePart) => {
+    const url = part.url
+    if (!url) return
+
+    const filename = getAttachmentName(part)
+    const directDownload = (href: string) => {
+      const anchor = document.createElement("a")
+      anchor.href = href
+      anchor.download = filename
+      anchor.target = "_blank"
+      anchor.rel = "noopener"
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+    }
+
+    if (url.startsWith("data:")) {
+      directDownload(url)
+      return
+    }
+
+    if (url.startsWith("file://")) {
+      window.open(url, "_blank", "noopener")
+      return
+    }
+
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`Failed to fetch attachment: ${response.status}`)
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      directDownload(objectUrl)
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      directDownload(url)
+    }
+  }
 
   const errorMessage = () => {
     const info = props.messageInfo
@@ -48,7 +120,7 @@ export default function MessageItem(props: MessageItemProps) {
       return true
     }
 
-    return messageParts().some((part) => partHasRenderableText(part))
+    return displayParts().some((part) => partHasRenderableText(part))
   }
 
   const isGenerating = () => {
@@ -141,17 +213,64 @@ export default function MessageItem(props: MessageItemProps) {
           </div>
         </Show>
 
-        <For each={messageParts()}>{(part) => (
-          <MessagePart
-            part={part}
-            messageType={props.message.type}
-            instanceId={props.instanceId}
-            sessionId={props.sessionId}
-          />
-        )}</For>
+        <For each={displayParts()}>
+          {(part) => (
+            <MessagePart
+              part={part}
+              messageType={props.message.type}
+              instanceId={props.instanceId}
+              sessionId={props.sessionId}
+            />
+          )}
+        </For>
       </div>
 
+      <Show when={fileAttachments().length > 0}>
+        <div class="message-attachments">
+          <For each={fileAttachments()}>
+            {(attachment) => {
+              const name = getAttachmentName(attachment)
+              const isImage = isImageAttachment(attachment)
+              return (
+                <div class={`attachment-chip ${isImage ? "attachment-chip-image" : ""}`} title={name}>
+                  <Show when={isImage} fallback={
+                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                      />
+                    </svg>
+                  }>
+                    <img src={attachment.url} alt={name} class="h-5 w-5 rounded object-cover" />
+                  </Show>
+                  <span class="truncate max-w-[180px]">{name}</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleAttachmentDownload(attachment)}
+                    class="attachment-download"
+                    aria-label={`Download ${name}`}
+                  >
+                    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12l4 4 4-4m-4-8v12" />
+                    </svg>
+                  </button>
+                  <Show when={isImage}>
+                    <div class="attachment-chip-preview">
+                      <img src={attachment.url} alt={name} />
+                    </div>
+                  </Show>
+                </div>
+              )
+            }}
+          </For>
+        </div>
+      </Show>
+
       <Show when={props.message.status === "sending"}>
+
         <div class="message-sending">
           <span class="generating-spinner">●</span> Sending...
         </div>
