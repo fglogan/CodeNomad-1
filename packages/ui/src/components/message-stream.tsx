@@ -628,9 +628,11 @@ export default function MessageStream(props: MessageStreamProps) {
 
             const toolPart = item.toolPart
 
+            const toolState = toolPart.state
+            const hasToolState = isToolStateRunning(toolState) || isToolStateCompleted(toolState) || isToolStateError(toolState)
             const taskSessionId =
-              (isToolStateRunning(toolPart.state) || isToolStateCompleted(toolPart.state) || isToolStateError(toolPart.state))
-                ? toolPart.state.metadata?.sessionId === "string" ? toolPart.state.metadata.sessionId : ""
+              hasToolState && typeof toolState?.metadata?.sessionId === "string"
+                ? toolState.metadata.sessionId
                 : ""
             const taskLocation = taskSessionId ? findTaskSessionLocation(taskSessionId) : null
 

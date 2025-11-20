@@ -346,11 +346,11 @@ export default function ToolCall(props: ToolCallProps) {
   const { preferences, setDiffViewMode } = useConfig()
   const { isDark } = useTheme()
   const toolCallId = () => props.toolCallId || props.toolCall?.id || ""
-  const expanded = () => isToolCallExpanded(toolCallId())
+  const pendingPermission = createMemo(() => props.toolCall.pendingPermission)
+  const expanded = () => (pendingPermission() ? true : isToolCallExpanded(toolCallId()))
   const toolOutputDefaultExpanded = createMemo(() => (preferences().toolOutputExpansion || "expanded") === "expanded")
   const diagnosticsDefaultExpanded = createMemo(() => (preferences().diagnosticsExpansion || "expanded") === "expanded")
   const [appliedPreference, setAppliedPreference] = createSignal<boolean | null>(null)
-  const pendingPermission = createMemo(() => props.toolCall.pendingPermission)
   const permissionDetails = createMemo(() => pendingPermission()?.permission)
   const isPermissionActive = createMemo(() => pendingPermission()?.active === true)
   const activePermissionKey = createMemo(() => {
@@ -414,13 +414,6 @@ export default function ToolCall(props: ToolCallProps) {
     const id = toolCallId()
     if (!id) return
     setAppliedPreference((prev) => (prev === null ? prev : null))
-  })
-
-  createEffect(() => {
-    if (!pendingPermission()) return
-    const id = toolCallId()
-    if (!id) return
-    setToolCallExpanded(id, true)
   })
 
   createEffect(() => {
