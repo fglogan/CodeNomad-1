@@ -646,44 +646,7 @@
 }
 
 .tool-call-todo-region {
-  @apply flex flex-col gap-3;
-}
-
-.tool-call-todo-summary {
-  @apply flex flex-col gap-2;
-  background-color: var(--surface-base);
-  border: 1px solid var(--border-base);
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-.tool-call-todo-metrics {
-  @apply flex flex-wrap items-center gap-3;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-.tool-call-todo-metric-value {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-semibold);
-  margin-right: 4px;
-}
-
-.tool-call-todo-progress {
-  position: relative;
-  height: 8px;
-  border-radius: 9999px;
-  background-color: var(--surface-secondary);
-  overflow: hidden;
-  border: 1px solid var(--border-base);
-}
-
-.tool-call-todo-progress-bar {
-  position: absolute;
-  inset: 0;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-  transition: width 0.2s ease;
+  @apply flex flex-col;
 }
 
 .tool-call-todo-empty {
@@ -692,7 +655,7 @@
 }
 
 .tool-call-todos {
-  @apply my-2 flex flex-col gap-2;
+  @apply my-2 flex flex-col gap-0;
   list-style: none;
   padding: 4px 0;
 }
@@ -700,7 +663,7 @@
 .tool-call-todo-item {
   @apply flex items-start gap-3;
   border: 1px solid var(--border-base);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 10px 12px;
   background-color: var(--surface-secondary);
 }

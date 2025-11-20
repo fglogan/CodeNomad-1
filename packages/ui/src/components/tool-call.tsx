@@ -994,27 +994,8 @@ export default function ToolCall(props: ToolCallProps) {
       return <div class="tool-call-todo-empty">No plan items yet.</div>
     }
 
-    const completionPercent = Math.round((counts.completed / counts.total) * 100)
-
     return (
       <div class="tool-call-todo-region">
-        <div class="tool-call-todo-summary">
-          <div class="tool-call-todo-metrics">
-            <span class="tool-call-todo-metric"><span class="tool-call-todo-metric-value">{counts.completed}</span> done</span>
-            <span class="tool-call-todo-metric"><span class="tool-call-todo-metric-value">{counts.in_progress}</span> in progress</span>
-            <span class="tool-call-todo-metric"><span class="tool-call-todo-metric-value">{counts.pending}</span> pending</span>
-          </div>
-          <div
-            class="tool-call-todo-progress"
-            role="progressbar"
-            aria-valuemin="0"
-            aria-valuemax={counts.total}
-            aria-valuenow={counts.completed}
-            aria-label="Plan progress"
-          >
-            <div class="tool-call-todo-progress-bar" style={{ width: `${completionPercent}%` }} />
-          </div>
-        </div>
         <div class="tool-call-todos" role="list">
           <For each={todos}>
             {(todo) => {
