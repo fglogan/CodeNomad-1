@@ -1,0 +1,45 @@
+name: Manual NPM Publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+
+      - name: Ensure npm >=11.5.1
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci --workspaces
+
+      - name: Ensure rollup native binary
+        run: npm install @rollup/rollup-linux-x64-gnu --no-save
+
+      - name: Build server package (includes UI bundling)
+        run: npm run build --workspace @neuralnomads/codenomad
+
+      - name: Publish server package with provenance
+        env:
+          NPM_CONFIG_PROVENANCE: true
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+          VERSION: $(node -p "require('./package.json').version")
+          DIST_TAG: dev
+        run: |
+          npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
+          npm publish --workspace @neuralnomads/codenomad --access public --tag ${DIST_TAG} --provenance
