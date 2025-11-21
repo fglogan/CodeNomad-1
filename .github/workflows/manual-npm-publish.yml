@@ -3,6 +3,10 @@ name: Manual NPM Publish
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Version to publish (e.g. 0.2.0-dev)"
+        required: false
+        type: string
       dist_tag:
         description: "npm dist-tag"
         required: false
@@ -10,6 +14,9 @@ on:
         type: string
   workflow_call:
     inputs:
+      version:
+        required: true
+        type: string
       dist_tag:
         required: false
         type: string
@@ -47,10 +54,17 @@ jobs:
         run: npm run build --workspace @neuralnomads/codenomad
 
       - name: Set publish metadata
+        shell: bash
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          VERSION_INPUT="${{ inputs.version }}"
+          if [ -z "$VERSION_INPUT" ]; then
+            VERSION_INPUT=$(node -p "require('./package.json').version")
+          fi
+          echo "VERSION=$VERSION_INPUT" >> "$GITHUB_ENV"
           echo "DIST_TAG=${{ inputs.dist_tag || 'dev' }}" >> "$GITHUB_ENV"
+
+      - name: Bump package version for publish
+        run: npm version ${VERSION} --workspaces --include-workspace-root --no-git-tag-version --allow-same-version
 
       - name: Publish server package with provenance
         env:

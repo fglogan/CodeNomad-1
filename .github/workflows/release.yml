@@ -77,5 +77,6 @@ jobs:
     needs: prepare-release
     uses: ./.github/workflows/manual-npm-publish.yml
     with:
+      version: ${{ needs.prepare-release.outputs.version }}
       dist_tag: latest
     secrets: inherit

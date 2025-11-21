@@ -60,5 +60,6 @@ jobs:
     needs: prepare-dev
     uses: ./.github/workflows/manual-npm-publish.yml
     with:
+      version: ${{ needs.prepare-dev.outputs.version }}
       dist_tag: dev
     secrets: inherit
