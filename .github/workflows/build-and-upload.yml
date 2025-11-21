@@ -280,10 +280,10 @@ jobs:
           $artifactDir = "packages/tauri-app/release-tauri"
           if (Test-Path $artifactDir) { Remove-Item $artifactDir -Recurse -Force }
           New-Item -ItemType Directory -Path $artifactDir | Out-Null
-          $artifact = Get-ChildItem -Path $bundleRoot -Recurse -File | Where-Object { $_.Extension -in '.exe', '.msi' } | Select-Object -First 1
-          if ($null -ne $artifact) {
+          $exe = Get-ChildItem -Path $bundleRoot -Recurse -File -Filter *.exe | Select-Object -First 1
+          if ($null -ne $exe) {
             $dest = Join-Path $artifactDir ("CodeNomad-Tauri-$env:VERSION-windows-x64.zip")
-            Compress-Archive -Path $artifact.FullName -DestinationPath $dest -Force
+            Compress-Archive -Path $exe.Directory.FullName -DestinationPath $dest -Force
           }
 
       - name: Upload Tauri release assets (Windows)

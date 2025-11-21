@@ -39,6 +39,12 @@
       "resources/server"
     ],
     "icon": ["icon.icns", "icon.ico", "icon.png"],
-    "targets": ["appimage"]
+    "targets": ["appimage", "deb", "rpm"],
+    "linux": {
+      "targets": ["appimage", "deb", "rpm"]
+    },
+    "windows": {
+      "targets": ["app"]
+    }
   }
 }
