@@ -2,11 +2,6 @@ name: Dev Release
 
 on:
   workflow_dispatch:
-    inputs:
-      base_version:
-        description: "Base semver (e.g. 1.2.3)"
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -32,9 +27,8 @@ jobs:
 
       - name: Compute dev versions
         id: versions
-        env:
-          BASE_VERSION: ${{ inputs.base_version }}
         run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
           DEV_VERSION="${BASE_VERSION}-dev"
           TIMESTAMP=$(date -u +%y%m%d-%H%M)
           TAG="v${DEV_VERSION}-${TIMESTAMP}"
