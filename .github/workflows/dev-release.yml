@@ -30,8 +30,7 @@ jobs:
         run: |
           BASE_VERSION=$(node -p "require('./package.json').version")
           DEV_VERSION="${BASE_VERSION}-dev"
-          TIMESTAMP=$(date -u +%y%m%d-%H%M)
-          TAG="v${DEV_VERSION}-${TIMESTAMP}"
+          TAG="v${DEV_VERSION}"
           echo "version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "release_name=$TAG" >> "$GITHUB_OUTPUT"
