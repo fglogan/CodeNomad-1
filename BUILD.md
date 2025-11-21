@@ -13,7 +13,7 @@ This guide explains how to build distributable binaries for CodeNomad.
 All commands now run inside the workspace packages. From the repo root you can target the Electron app package directly:
 
 ```bash
-npm run build --workspace @codenomad/electron-app
+npm run build --workspace @neuralnomads/codenomad-electron-app
 ```
 
 ### Build for Current Platform (macOS default)

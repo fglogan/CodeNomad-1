@@ -1,5 +1,5 @@
 {
-  "name": "@codenomad/electron-app",
+  "name": "@neuralnomads/codenomad-electron-app",
   "version": "0.1.2",
   "description": "CodeNomad - AI coding assistant",
   "author": {
