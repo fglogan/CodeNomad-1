@@ -89,7 +89,6 @@ function attachClient(descriptor: WorkspaceDescriptor) {
 
   if (instance.client) {
     sdkManager.destroyClient(descriptor.id)
-    sseManager.disconnect(descriptor.id)
   }
 
   const client = sdkManager.createClient(descriptor.id, nextProxyPath)
@@ -99,7 +98,7 @@ function attachClient(descriptor: WorkspaceDescriptor) {
     proxyPath: nextProxyPath,
     status: "ready",
   })
-  sseManager.connect(descriptor.id, nextProxyPath)
+  sseManager.seedStatus(descriptor.id, "connecting")
   void hydrateInstanceData(descriptor.id).catch((error) => {
     console.error("Failed to hydrate instance data", error)
   })
@@ -112,7 +111,7 @@ function releaseInstanceResources(instanceId: string) {
   if (instance.client) {
     sdkManager.destroyClient(instanceId)
   }
-  sseManager.disconnect(instanceId)
+  sseManager.seedStatus(instanceId, "disconnected")
 }
 
 async function hydrateInstanceData(instanceId: string) {

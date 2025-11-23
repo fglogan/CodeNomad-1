@@ -14,10 +14,12 @@ import { FileSystemBrowser } from "./filesystem/browser"
 import { EventBus } from "./events/bus"
 import { ServerMeta } from "./api-types"
 import { InstanceStore } from "./storage/instance-store"
+import { InstanceEventBridge } from "./workspaces/instance-events"
 import { createLogger } from "./logger"
 import { launchInBrowser } from "./launcher"
 
 const require = createRequire(import.meta.url)
+
 const packageJson = require("../package.json") as { version: string }
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -121,6 +123,11 @@ async function main() {
   })
   const fileSystemBrowser = new FileSystemBrowser({ rootDir: options.rootDir, unrestricted: options.unrestrictedRoot })
   const instanceStore = new InstanceStore()
+  const instanceEventBridge = new InstanceEventBridge({
+    workspaceManager,
+    eventBus,
+    logger: logger.child({ component: "instance-events" }),
+  })
 
   const serverMeta: ServerMeta = {
     httpBaseUrl: `http://${options.host}:${options.port}`,
@@ -169,6 +176,7 @@ async function main() {
     }
 
     try {
+      instanceEventBridge.shutdown()
       await workspaceManager.shutdown()
       logger.info("Workspace manager shutdown complete")
     } catch (error) {

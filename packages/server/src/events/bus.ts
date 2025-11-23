@@ -8,7 +8,9 @@ export class EventBus extends EventEmitter {
   }
 
   publish(event: WorkspaceEventPayload): boolean {
-    this.logger?.debug({ event }, "Publishing workspace event")
+    if (event.type !== "instance.event" && event.type !== "instance.eventStatus") {
+      this.logger?.debug({ event }, "Publishing workspace event")
+    }
     return super.emit(event.type, event)
   }
 
@@ -22,6 +24,8 @@ export class EventBus extends EventEmitter {
     this.on("config.appChanged", handler)
     this.on("config.binariesChanged", handler)
     this.on("instance.dataChanged", handler)
+    this.on("instance.event", handler)
+    this.on("instance.eventStatus", handler)
     return () => {
       this.off("workspace.created", handler)
       this.off("workspace.started", handler)
@@ -31,6 +35,8 @@ export class EventBus extends EventEmitter {
       this.off("config.appChanged", handler)
       this.off("config.binariesChanged", handler)
       this.off("instance.dataChanged", handler)
+      this.off("instance.event", handler)
+      this.off("instance.eventStatus", handler)
     }
   }
 }

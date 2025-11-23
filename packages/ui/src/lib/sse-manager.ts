@@ -14,16 +14,15 @@ import type {
   EventSessionIdle,
   EventSessionUpdated,
 } from "@opencode-ai/sdk"
-import { CODENOMAD_API_BASE } from "./api-client"
+import { serverEvents } from "./server-events"
+import type {
+  InstanceStreamEvent,
+  InstanceStreamStatus,
+  WorkspaceEventPayload,
+} from "../../../server/src/api-types"
 
-interface SSEConnection {
-  instanceId: string
-  proxyPath: string
-  eventSource: EventSource
-  status: "connecting" | "connected" | "disconnected" | "error"
-  reconnectAttempts: number
-  reconnectTimer?: ReturnType<typeof setTimeout>
-}
+type InstanceEventPayload = Extract<WorkspaceEventPayload, { type: "instance.event" }>
+type InstanceStatusPayload = Extract<WorkspaceEventPayload, { type: "instance.eventStatus" }>
 
 interface TuiToastEvent {
   type: "tui.toast.show"
@@ -35,7 +34,7 @@ interface TuiToastEvent {
   }
 }
 
-type SSEEvent = 
+type SSEEvent =
   | MessageUpdateEvent
   | MessageRemovedEvent
   | MessagePartUpdatedEvent
@@ -48,73 +47,40 @@ type SSEEvent =
   | EventPermissionReplied
   | EventLspUpdated
   | TuiToastEvent
-  | { type: string; properties?: Record<string, unknown> } // Fallback for unknown event types
+  | { type: string; properties?: Record<string, unknown> }
 
-const [connectionStatus, setConnectionStatus] = createSignal<
-  Map<string, "connecting" | "connected" | "disconnected" | "error">
->(new Map())
+type ConnectionStatus = InstanceStreamStatus
+
+const [connectionStatus, setConnectionStatus] = createSignal<Map<string, ConnectionStatus>>(new Map())
 
 class SSEManager {
-  private connections = new Map<string, SSEConnection>()
-  private static readonly MAX_RECONNECT_DELAY_MS = 5000
-
-  connect(instanceId: string, proxyPath: string, reconnectAttempts = 0): void {
-    const existing = this.connections.get(instanceId)
-    if (existing) {
-      this.clearReconnectTimer(existing)
-      existing.eventSource.close()
-    }
-
-    const url = buildInstanceEventsUrl(proxyPath)
-    const eventSource = new EventSource(url)
-
-    const connection: SSEConnection = {
-      instanceId,
-      proxyPath,
-      eventSource,
-      status: "connecting",
-      reconnectAttempts,
-    }
-
-    this.connections.set(instanceId, connection)
-    this.updateConnectionStatus(instanceId, "connecting")
-
-    eventSource.onopen = () => {
-      connection.status = "connected"
-      connection.reconnectAttempts = 0
-      this.updateConnectionStatus(instanceId, "connected")
-      console.log(`[SSE] Connected to instance ${instanceId}`)
-    }
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        this.handleEvent(instanceId, data)
-      } catch (error) {
-        console.error("[SSE] Failed to parse event:", error)
+  constructor() {
+    serverEvents.on("instance.eventStatus", (event) => {
+      const payload = event as InstanceStatusPayload
+      this.updateConnectionStatus(payload.instanceId, payload.status)
+      if (payload.status === "error") {
+        const reason = payload.reason ?? "Instance stream error"
+        void this.onConnectionLost?.(payload.instanceId, reason)
       }
-    }
+    })
 
-    eventSource.onerror = () => {
-      connection.status = "error"
-      this.updateConnectionStatus(instanceId, "error")
-      console.error(`[SSE] Connection error for instance ${instanceId}`)
-      this.handleConnectionError(instanceId, "Connection to instance lost")
-    }
+    serverEvents.on("instance.event", (event) => {
+      const payload = event as InstanceEventPayload
+      this.updateConnectionStatus(payload.instanceId, "connected")
+      this.handleEvent(payload.instanceId, payload.event as SSEEvent)
+    })
   }
 
-  disconnect(instanceId: string): void {
-    const connection = this.connections.get(instanceId)
-    if (connection) {
-      this.clearReconnectTimer(connection)
-      connection.eventSource.close()
-      this.connections.delete(instanceId)
-      this.updateConnectionStatus(instanceId, "disconnected")
-      console.log(`[SSE] Disconnected from instance ${instanceId}`)
-    }
+  seedStatus(instanceId: string, status: ConnectionStatus) {
+    this.updateConnectionStatus(instanceId, status)
   }
 
-  private handleEvent(instanceId: string, event: SSEEvent): void {
+  private handleEvent(instanceId: string, event: SSEEvent | InstanceStreamEvent): void {
+    if (!event || typeof event !== "object" || typeof (event as { type?: unknown }).type !== "string") {
+      console.warn("[SSE] Dropping malformed event", event)
+      return
+    }
+
     console.log("[SSE] Received event:", event.type, event)
 
     switch (event.type) {
@@ -159,35 +125,7 @@ class SSEManager {
     }
   }
 
-  private handleConnectionError(instanceId: string, reason: string): void {
-    const connection = this.connections.get(instanceId)
-    if (!connection) return
-
-    connection.eventSource.close()
-
-    const nextAttempt = connection.reconnectAttempts + 1
-    const delay = Math.min(nextAttempt * 1000, SSEManager.MAX_RECONNECT_DELAY_MS)
-
-    connection.reconnectAttempts = nextAttempt
-    connection.status = "connecting"
-    this.updateConnectionStatus(instanceId, "connecting")
-
-    console.warn(`[SSE] Attempting reconnect ${nextAttempt} for instance ${instanceId}`)
-
-    connection.reconnectTimer = setTimeout(() => {
-      connection.reconnectTimer = undefined
-      this.connect(instanceId, connection.proxyPath, nextAttempt)
-    }, delay)
-  }
-
-  private clearReconnectTimer(connection: SSEConnection): void {
-    if (connection.reconnectTimer) {
-      clearTimeout(connection.reconnectTimer)
-      connection.reconnectTimer = undefined
-    }
-  }
-
-  private updateConnectionStatus(instanceId: string, status: SSEConnection["status"]): void {
+  private updateConnectionStatus(instanceId: string, status: ConnectionStatus): void {
     setConnectionStatus((prev) => {
       const next = new Map(prev)
       next.set(instanceId, status)
@@ -209,28 +147,13 @@ class SSEManager {
   onLspUpdated?: (instanceId: string, event: EventLspUpdated) => void
   onConnectionLost?: (instanceId: string, reason: string) => void | Promise<void>
 
-  getStatus(instanceId: string): "connecting" | "connected" | "disconnected" | "error" | null {
+  getStatus(instanceId: string): ConnectionStatus | null {
     return connectionStatus().get(instanceId) ?? null
   }
 
   getStatuses() {
     return connectionStatus()
   }
-}
-
-function buildInstanceEventsUrl(proxyPath: string): string {
-  const normalized = normalizeProxyPath(proxyPath)
-  const base = stripTrailingSlashes(CODENOMAD_API_BASE)
-  return `${base}${normalized}/event`
-}
-
-function normalizeProxyPath(proxyPath: string): string {
-  const withLeading = proxyPath.startsWith("/") ? proxyPath : `/${proxyPath}`
-  return withLeading.replace(/\/+/g, "/").replace(/\/+$/, "")
-}
-
-function stripTrailingSlashes(input: string): string {
-  return input.replace(/\/+$/, "")
 }
 
 export const sseManager = new SSEManager()

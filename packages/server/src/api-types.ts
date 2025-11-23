@@ -111,6 +111,14 @@ export interface InstanceData {
   agentModelSelections: AgentModelSelection
 }
 
+export type InstanceStreamStatus = "connecting" | "connected" | "error" | "disconnected"
+
+export interface InstanceStreamEvent {
+  type: string
+  properties?: Record<string, unknown>
+  [key: string]: unknown
+}
+
 export interface BinaryRecord {
   id: string
   path: string
@@ -157,6 +165,8 @@ export type WorkspaceEventType =
   | "config.appChanged"
   | "config.binariesChanged"
   | "instance.dataChanged"
+  | "instance.event"
+  | "instance.eventStatus"
 
 export type WorkspaceEventPayload =
   | { type: "workspace.created"; workspace: WorkspaceDescriptor }
@@ -167,6 +177,8 @@ export type WorkspaceEventPayload =
   | { type: "config.appChanged"; config: AppConfig }
   | { type: "config.binariesChanged"; binaries: BinaryRecord[] }
   | { type: "instance.dataChanged"; instanceId: string; data: InstanceData }
+  | { type: "instance.event"; instanceId: string; event: InstanceStreamEvent }
+  | { type: "instance.eventStatus"; instanceId: string; status: InstanceStreamStatus; reason?: string }
 
 export interface ServerMeta {
   /** Base URL clients should target for REST calls (useful for Electron embedding). */
