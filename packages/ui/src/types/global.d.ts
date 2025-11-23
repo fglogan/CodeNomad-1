@@ -21,7 +21,6 @@ declare global {
 
   interface ElectronAPI {
     onCliStatus?: (callback: (data: unknown) => void) => () => void
-    onCliLog?: (callback: (data: unknown) => void) => () => void
     onCliError?: (callback: (data: unknown) => void) => () => void
     getCliStatus?: () => Promise<unknown>
     openDialog?: (options: ElectronDialogOptions) => Promise<ElectronDialogResult>

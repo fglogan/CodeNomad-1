@@ -355,7 +355,7 @@ impl CliProcessManager {
                 Ok(_) => {
                     let line = buffer.trim_end();
                     if !line.is_empty() {
-                        let _ = app.emit("cli:log", json!({"stream": stream, "message": line}));
+                        log_line(&format!("[cli][{}] {}", stream, line));
 
                         if ready.load(Ordering::SeqCst) {
                             continue;

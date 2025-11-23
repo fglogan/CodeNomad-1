@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from "electron"
-import type { CliLogEntry, CliProcessManager, CliStatus } from "./process-manager"
+import type { CliProcessManager, CliStatus } from "./process-manager"
 
 interface DialogOpenRequest {
   mode: "directory" | "file"
@@ -23,12 +23,6 @@ export function setupCliIPC(mainWindow: BrowserWindow, cliManager: CliProcessMan
   cliManager.on("ready", (status: CliStatus) => {
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send("cli:ready", status)
-    }
-  })
-
-  cliManager.on("log", (entry: CliLogEntry) => {
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("cli:log", entry)
     }
   })
 
