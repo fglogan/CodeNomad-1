@@ -7,12 +7,7 @@
     <script>
       ;(function () {
         try {
-          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-          if (prefersDark) {
-            document.documentElement.setAttribute('data-theme', 'dark')
-          } else {
-            document.documentElement.setAttribute('data-theme', 'light')
-          }
+          document.documentElement.setAttribute('data-theme', 'dark')
         } catch (error) {
           console.warn('Failed to apply initial theme', error)
         }

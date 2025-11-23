@@ -21,14 +21,11 @@ function applyTheme(dark: boolean) {
 export function ThemeProvider(props: { children: JSX.Element }) {
   const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)")
   const { themePreference, setThemePreference } = useConfig()
-  const [isDark, setIsDarkSignal] = createSignal(false)
+  const [isDark, setIsDarkSignal] = createSignal(true)
 
   const resolveDarkTheme = () => {
-    const preference = themePreference()
-    if (preference === "system") {
-      return systemPrefersDark.matches
-    }
-    return preference === "dark"
+    themePreference()
+    return true
   }
 
   const applyResolvedTheme = () => {
@@ -42,11 +39,8 @@ export function ThemeProvider(props: { children: JSX.Element }) {
   })
 
   onMount(() => {
-    const handleSystemThemeChange = (event: MediaQueryListEvent) => {
-      if (themePreference() === "system") {
-        setIsDarkSignal(event.matches)
-        applyTheme(event.matches)
-      }
+    const handleSystemThemeChange = () => {
+      applyResolvedTheme()
     }
 
     systemPrefersDark.addEventListener("change", handleSystemThemeChange)
@@ -56,12 +50,12 @@ export function ThemeProvider(props: { children: JSX.Element }) {
     }
   })
 
-  const setTheme = (dark: boolean) => {
-    setThemePreference(dark ? "dark" : "light")
+  const setTheme = (_dark: boolean) => {
+    setThemePreference("dark")
   }
 
   const toggleTheme = () => {
-    setTheme(!isDark())
+    setTheme(true)
   }
 
   return <ThemeContext.Provider value={{ isDark, toggleTheme, setTheme }}>{props.children}</ThemeContext.Provider>

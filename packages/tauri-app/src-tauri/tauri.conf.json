@@ -22,7 +22,9 @@
         "center": true,
         "resizable": true,
         "fullscreen": false,
-        "decorations": true
+        "decorations": true,
+        "theme": "Dark",
+        "backgroundColor": "#1a1a1a"
       }
     ],
     "security": {
