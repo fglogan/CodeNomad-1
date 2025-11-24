@@ -13,6 +13,26 @@ const uiLoadingDest = path.resolve(root, "src-tauri", "resources", "ui-loading")
 
 const sources = ["dist", "public", "node_modules", "package.json"]
 
+const serverInstallCommand =
+  "npm install --omit=dev --ignore-scripts --workspaces=false --package-lock=false --install-strategy=shallow --fund=false --audit=false"
+const serverDevInstallCommand =
+  "npm ci --workspace @neuralnomads/codenomad --include-workspace-root=false --install-strategy=nested --fund=false --audit=false"
+
+const envWithRootBin = {
+  ...process.env,
+  PATH: `${path.join(workspaceRoot, "node_modules/.bin")}:${process.env.PATH}`,
+}
+
+const braceExpansionPath = path.join(
+  serverRoot,
+  "node_modules",
+  "@fastify",
+  "static",
+  "node_modules",
+  "brace-expansion",
+  "package.json",
+)
+
 function ensureServerBuild() {
   const distPath = path.join(serverRoot, "dist")
   const publicPath = path.join(serverRoot, "public")
@@ -24,6 +44,10 @@ function ensureServerBuild() {
   execSync("npm --workspace @neuralnomads/codenomad run build", {
     cwd: workspaceRoot,
     stdio: "inherit",
+    env: {
+      ...process.env,
+      PATH: `${path.join(workspaceRoot, "node_modules/.bin")}:${process.env.PATH}`,
+    },
   })
 
   if (!fs.existsSync(distPath) || !fs.existsSync(publicPath)) {
@@ -48,6 +72,31 @@ function ensureUiBuild() {
   }
 }
 
+function ensureServerDevDependencies() {
+  if (fs.existsSync(braceExpansionPath)) {
+    return
+  }
+
+  console.log("[prebuild] ensuring server build dependencies (with dev)...")
+  execSync(serverDevInstallCommand, {
+    cwd: workspaceRoot,
+    stdio: "inherit",
+    env: envWithRootBin,
+  })
+}
+
+function ensureServerDependencies() {
+  if (fs.existsSync(braceExpansionPath)) {
+    return
+  }
+
+  console.log("[prebuild] ensuring server production dependencies...")
+  execSync(serverInstallCommand, {
+    cwd: serverRoot,
+    stdio: "inherit",
+  })
+}
+
 function copyServerArtifacts() {
   fs.rmSync(serverDest, { recursive: true, force: true })
   fs.mkdirSync(serverDest, { recursive: true })
@@ -59,7 +108,7 @@ function copyServerArtifacts() {
       console.warn(`[prebuild] skipped missing ${from}`)
       continue
     }
-    fs.cpSync(from, to, { recursive: true })
+    fs.cpSync(from, to, { recursive: true, dereference: true })
     console.log(`[prebuild] copied ${from} -> ${to}`)
   }
 }
@@ -83,7 +132,9 @@ function copyUiLoadingAssets() {
   console.log(`[prebuild] prepared UI loading assets from ${uiDist}`)
 }
 
+ensureServerDevDependencies()
 ensureServerBuild()
 ensureUiBuild()
+ensureServerDependencies()
 copyServerArtifacts()
 copyUiLoadingAssets()
