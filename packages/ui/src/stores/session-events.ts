@@ -13,6 +13,7 @@ import type {
   EventSessionIdle,
   EventSessionUpdated,
 } from "@opencode-ai/sdk"
+import type { MessageStatus } from "./message-v2/types"
 
 import { showToastNotification, ToastVariant } from "../lib/notifications"
 import { instances, addPermissionToQueue, removePermissionFromQueue, refreshPermissionsForSession } from "./instances"
@@ -136,6 +137,8 @@ function handleMessageUpdate(instanceId: string, event: MessageUpdateEvent | Mes
 
     const store = messageStoreBus.getOrCreate(instanceId)
     const role: MessageRole = info.role === "user" ? "user" : "assistant"
+    const hasError = Boolean((info as any).error)
+    const status: MessageStatus = hasError ? "error" : "complete"
 
     let record = store.getMessage(messageId)
     if (!record) {
@@ -153,18 +156,19 @@ function handleMessageUpdate(instanceId: string, event: MessageUpdateEvent | Mes
         id: messageId,
         sessionId,
         role,
-        status: "complete",
+        status,
         createdAt,
         updatedAt: completedAt ?? createdAt,
       })
     }
 
-    upsertMessageInfoV2(instanceId, info, { status: "complete", bumpRevision: true })
+    upsertMessageInfoV2(instanceId, info, { status, bumpRevision: true })
 
     updateSessionInfo(instanceId, sessionId)
     refreshPermissionsForSession(instanceId, sessionId)
   }
-}
+ }
+
 
 function handleSessionUpdate(instanceId: string, event: EventSessionUpdated): void {
   const info = event.properties?.info

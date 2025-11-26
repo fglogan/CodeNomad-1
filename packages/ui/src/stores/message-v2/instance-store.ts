@@ -182,7 +182,6 @@ function rebuildUsageStateFromInfos(infos: Iterable<MessageInfo>): SessionUsageS
 }
 
 export interface InstanceMessageStore {
-
   instanceId: string
   state: InstanceMessageState
   setState: SetStoreFunction<InstanceMessageState>
@@ -207,11 +206,14 @@ export interface InstanceMessageStore {
   getSessionRevision: (sessionId: string) => number
   getSessionMessageIds: (sessionId: string) => string[]
   getMessage: (messageId: string) => MessageRecord | undefined
+  clearSession: (sessionId: string) => void
   clearInstance: () => void
 }
 
 export function createInstanceMessageStore(instanceId: string): InstanceMessageStore {
   const [state, setState] = createStore<InstanceMessageState>(createInitialState(instanceId))
+
+
   const messageInfoCache = new Map<string, MessageInfo>()
 
   function bumpSessionRevision(sessionId: string) {
@@ -661,36 +663,109 @@ export function createInstanceMessageStore(instanceId: string): InstanceMessageS
     return state.scrollState[key]
   }
 
-  function clearInstance() {
-    messageInfoCache.clear()
-    setState(reconcile(createInitialState(instanceId)))
-  }
+   function clearSession(sessionId: string) {
+     if (!sessionId) return
 
-  return {
-    instanceId,
-    state,
-    setState,
-    addOrUpdateSession,
-    hydrateMessages,
-    upsertMessage,
-    applyPartUpdate,
-    bufferPendingPart,
-    flushPendingParts,
-    replaceMessageId,
-    setMessageInfo,
-    getMessageInfo,
-    upsertPermission,
-    removePermission,
-    getPermissionState,
-    setSessionRevert,
-    getSessionRevert,
-    rebuildUsage,
-    getSessionUsage,
-    setScrollSnapshot,
-    getScrollSnapshot,
-    getSessionRevision: getSessionRevisionValue,
-    getSessionMessageIds: (sessionId: string) => state.sessions[sessionId]?.messageIds ?? [],
-    getMessage: (messageId: string) => state.messages[messageId],
-    clearInstance,
-  }
-}
+     const messageIds = Object.values(state.messages)
+       .filter((record) => record.sessionId === sessionId)
+       .map((record) => record.id)
+
+     // Remove message-level data
+     setState("messages", (prev) => {
+       const next = { ...prev }
+       messageIds.forEach((id) => delete next[id])
+       return next
+     })
+
+     setState("messageInfoVersion", (prev) => {
+       const next = { ...prev }
+       messageIds.forEach((id) => delete next[id])
+       return next
+     })
+
+     messageIds.forEach((id) => messageInfoCache.delete(id))
+
+     setState("pendingParts", (prev) => {
+       const next = { ...prev }
+       messageIds.forEach((id) => {
+         if (next[id]) delete next[id]
+       })
+       return next
+     })
+
+     setState("permissions", "byMessage", (prev) => {
+       const next = { ...prev }
+       messageIds.forEach((id) => {
+         if (next[id]) delete next[id]
+       })
+       return next
+     })
+
+     // Remove session-level data
+     setState("usage", (prev) => {
+       const next = { ...prev }
+       delete next[sessionId]
+       return next
+     })
+
+     setState("sessionRevisions", (prev) => {
+       const next = { ...prev }
+       delete next[sessionId]
+       return next
+     })
+
+     setState("scrollState", (prev) => {
+       const next = { ...prev }
+       const prefix = `${sessionId}:`
+       Object.keys(next).forEach((key) => {
+         if (key.startsWith(prefix)) {
+           delete next[key]
+         }
+       })
+       return next
+     })
+
+     setState("sessions", (prev) => {
+       const next = { ...prev }
+       delete next[sessionId]
+       return next
+     })
+
+     setState("sessionOrder", (ids) => ids.filter((id) => id !== sessionId))
+   }
+
+   function clearInstance() {
+     messageInfoCache.clear()
+     setState(reconcile(createInitialState(instanceId)))
+   }
+ 
+   return {
+     instanceId,
+     state,
+     setState,
+     addOrUpdateSession,
+     hydrateMessages,
+     upsertMessage,
+     applyPartUpdate,
+     bufferPendingPart,
+     flushPendingParts,
+     replaceMessageId,
+     setMessageInfo,
+     getMessageInfo,
+     upsertPermission,
+     removePermission,
+     getPermissionState,
+     setSessionRevert,
+     getSessionRevert,
+     rebuildUsage,
+     getSessionUsage,
+     setScrollSnapshot,
+     getScrollSnapshot,
+     getSessionRevision: getSessionRevisionValue,
+     getSessionMessageIds: (sessionId: string) => state.sessions[sessionId]?.messageIds ?? [],
+     getMessage: (messageId: string) => state.messages[messageId],
+     clearSession,
+     clearInstance,
+   }
+ }
+

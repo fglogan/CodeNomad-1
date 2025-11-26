@@ -25,6 +25,8 @@ import { DEFAULT_MODEL_OUTPUT_LIMIT, getDefaultModel, isModelValid } from "./ses
 import { normalizeMessagePart } from "./message-v2/normalizers"
 import { updateSessionInfo } from "./message-v2/session-info"
 import { seedSessionMessagesV2 } from "./message-v2/bridge"
+import { messageStoreBus } from "./message-v2/bus"
+import { clearCacheForSession } from "../lib/global-cache"
 
 interface SessionForkResponse {
   id: string
@@ -357,6 +359,10 @@ async function deleteSession(instanceId: string, sessionId: string): Promise<voi
 
     setSessionCompactionState(instanceId, sessionId, false)
     clearSessionDraftPrompt(instanceId, sessionId)
+
+    // Drop normalized message state and caches for this session
+    messageStoreBus.getOrCreate(instanceId).clearSession(sessionId)
+    clearCacheForSession(instanceId, sessionId)
 
     setSessionInfoByInstance((prev) => {
       const next = new Map(prev)
