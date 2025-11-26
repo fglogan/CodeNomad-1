@@ -3,7 +3,7 @@ import MessageItem from "./message-item"
 import ToolCall from "./tool-call"
 import Kbd from "./kbd"
 import type { MessageInfo, ClientPart } from "../types/message"
-import { getSessionInfo } from "../stores/sessions"
+import { getSessionInfo, sessions, setActiveParentSession, setActiveSession } from "../stores/sessions"
 import { showCommandPalette } from "../stores/command-palette"
 import { messageStoreBus } from "../stores/message-v2/bus"
 import type { MessageRecord } from "../stores/message-v2/types"
@@ -12,24 +12,81 @@ import { useConfig } from "../stores/preferences"
 import { sseManager } from "../lib/sse-manager"
 import { formatTokenTotal } from "../lib/formatters"
 import { useScrollCache } from "../lib/hooks/use-scroll-cache"
+import { setActiveInstanceId } from "../stores/instances"
 
 const SCROLL_SCOPE = "session"
+
 const TOOL_ICON = "🔧"
 const codeNomadLogo = new URL("../images/CodeNomad-Icon.png", import.meta.url).href
 
-const INITIAL_BATCH_COUNT = 150
-const PREPEND_CHUNK_COUNT = 50
-const LOAD_MORE_THRESHOLD_PX = 320
-const ESTIMATED_MESSAGE_HEIGHT = 120
-
 const messageItemCache = new Map<string, MessageDisplayItem>()
 const toolItemCache = new Map<string, ToolDisplayItem>()
+
+type ToolState = import("@opencode-ai/sdk").ToolState
+type ToolStateRunning = import("@opencode-ai/sdk").ToolStateRunning
+type ToolStateCompleted = import("@opencode-ai/sdk").ToolStateCompleted
+type ToolStateError = import("@opencode-ai/sdk").ToolStateError
+
+function isToolStateRunning(state: ToolState | undefined): state is ToolStateRunning {
+  return Boolean(state && state.status === "running")
+}
+
+function isToolStateCompleted(state: ToolState | undefined): state is ToolStateCompleted {
+  return Boolean(state && state.status === "completed")
+}
+
+function isToolStateError(state: ToolState | undefined): state is ToolStateError {
+  return Boolean(state && state.status === "error")
+}
+
+function extractTaskSessionId(state: ToolState | undefined): string {
+  if (!state) return ""
+  const metadata = (state as unknown as { metadata?: Record<string, unknown> }).metadata ?? {}
+  const directId = metadata?.sessionId ?? metadata?.sessionID
+  return typeof directId === "string" ? directId : ""
+}
+
+interface TaskSessionLocation {
+  sessionId: string
+  instanceId: string
+  parentId: string | null
+}
+
+function findTaskSessionLocation(sessionId: string): TaskSessionLocation | null {
+  if (!sessionId) return null
+  const allSessions = sessions()
+  for (const [instanceId, sessionMap] of allSessions) {
+    const session = sessionMap?.get(sessionId)
+    if (session) {
+      return {
+        sessionId: session.id,
+        instanceId,
+        parentId: session.parentId ?? null,
+      }
+    }
+  }
+  return null
+}
+
+function navigateToTaskSession(location: TaskSessionLocation) {
+  setActiveInstanceId(location.instanceId)
+  const parentToActivate = location.parentId ?? location.sessionId
+  setActiveParentSession(location.instanceId, parentToActivate)
+  if (location.parentId) {
+    setActiveSession(location.instanceId, location.sessionId)
+  }
+}
+
+function formatTokens(tokens: number): string {
+  return formatTokenTotal(tokens)
+}
 
 function makeInstanceCacheKey(instanceId: string, id: string) {
   return `${instanceId}:${id}`
 }
 
 function clearInstanceCaches(instanceId: string) {
+
   clearRecordDisplayCacheForInstance(instanceId)
   const prefix = `${instanceId}:`
   for (const key of messageItemCache.keys()) {
@@ -45,11 +102,6 @@ function clearInstanceCaches(instanceId: string) {
 }
 
 messageStoreBus.onInstanceDestroyed(clearInstanceCaches)
-
-function formatTokens(tokens: number): string {
-  return formatTokenTotal(tokens)
-}
-
 
 interface MessageStreamV2Props {
   instanceId: string
@@ -84,11 +136,6 @@ interface MessageDisplayBlock {
   toolItems: ToolDisplayItem[]
 }
 
-interface MeasurementEntry {
-  revision: number
-  height: number
-}
-
 function hasRenderableContent(record: MessageRecord, combinedParts: ClientPart[], info?: MessageInfo): boolean {
   if (record.role !== "assistant" && record.role !== "user") {
     return false
@@ -111,62 +158,6 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
       .map((id) => store().getMessage(id))
       .filter((record): record is MessageRecord => Boolean(record)),
   )
-
-  const [visibleRange, setVisibleRange] = createSignal({ start: 0, end: 0 })
-  const [rangeInitialized, setRangeInitialized] = createSignal(false)
-  const [forceFullHistory, setForceFullHistory] = createSignal(false)
-  const messageMeasurements = new Map<string, MeasurementEntry>()
-  const [measurementVersion, setMeasurementVersion] = createSignal(0)
-  const [virtualPadding, setVirtualPadding] = createSignal(0)
-  const [reachedAbsoluteTop, setReachedAbsoluteTop] = createSignal(false)
-  const showLoadOlderButton = createMemo(() => visibleRange().start > 0 && reachedAbsoluteTop())
-
-  function updateMeasurementCache(messageId: string, revision: number, height: number) {
-    const safeHeight = Math.max(0, height)
-    const existing = messageMeasurements.get(messageId)
-    if (existing && existing.revision === revision && Math.abs(existing.height - safeHeight) < 1) {
-      return
-    }
-    messageMeasurements.set(messageId, { revision, height: safeHeight })
-    setMeasurementVersion((value) => value + 1)
-  }
-
-  function getAverageMeasuredHeight() {
-    if (messageMeasurements.size === 0) {
-      return ESTIMATED_MESSAGE_HEIGHT
-    }
-    let total = 0
-    for (const entry of messageMeasurements.values()) {
-      total += entry.height
-    }
-    return total / messageMeasurements.size
-  }
-
-  const messageIndexMap = createMemo(() => {
-    const map = new Map<string, number>()
-    const records = messageRecords()
-    records.forEach((record, index) => map.set(record.id, index))
-    return map
-  })
-
-  const lastAssistantIndex = createMemo(() => {
-    const records = messageRecords()
-    for (let index = records.length - 1; index >= 0; index--) {
-      if (records[index].role === "assistant") {
-        return index
-      }
-    }
-    return -1
-  })
-
-  const visibleRecords = createMemo(() => {
-    const records = messageRecords()
-    const range = visibleRange()
-    if (range.end === 0) {
-      return records
-    }
-    return records.slice(range.start, range.end)
-  })
 
   const sessionRevision = createMemo(() => store().getSessionRevision(props.sessionId))
   const usageSnapshot = createMemo(() => store().getSessionUsage(props.sessionId))
@@ -199,8 +190,7 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
 
   const messageInfoMap = createMemo(() => {
     const map = new Map<string, MessageInfo>()
-    const records = visibleRecords()
-    records.forEach((record) => {
+    messageRecords().forEach((record) => {
       const info = store().getMessageInfo(record.id)
       if (info) {
         map.set(record.id, info)
@@ -210,26 +200,21 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
   })
   const revertTarget = createMemo(() => store().getSessionRevert(props.sessionId))
 
-  const scrollCache = useScrollCache({
-    instanceId: () => props.instanceId,
-    sessionId: () => props.sessionId,
-    scope: SCROLL_SCOPE,
+  const messageIndexMap = createMemo(() => {
+    const map = new Map<string, number>()
+    const records = messageRecords()
+    records.forEach((record, index) => map.set(record.id, index))
+    return map
   })
 
-  let previousToken: string | undefined
-
-  createEffect(() => {
-    const sessionId = props.sessionId
-    store()
-    messageMeasurements.clear()
-    setMeasurementVersion((value) => value + 1)
-    setVirtualPadding(0)
-    setVisibleRange({ start: 0, end: 0 })
-    setRangeInitialized(false)
-    setReachedAbsoluteTop(false)
-    const snapshot = store().getScrollSnapshot(sessionId, SCROLL_SCOPE)
-    setForceFullHistory(Boolean(snapshot && !snapshot.atBottom))
-    previousToken = undefined
+  const lastAssistantIndex = createMemo(() => {
+    const records = messageRecords()
+    for (let index = records.length - 1; index >= 0; index--) {
+      if (records[index].role === "assistant") {
+        return index
+      }
+    }
+    return -1
   })
 
   const displayBlocks = createMemo<MessageDisplayBlock[]>(() => {
@@ -240,12 +225,11 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
     const blocks: MessageDisplayBlock[] = []
     const usedMessageKeys = new Set<string>()
     const usedToolKeys = new Set<string>()
-    const records = visibleRecords()
-    const globalAssistantIndex = lastAssistantIndex()
+    const records = messageRecords()
+    const assistantIndex = lastAssistantIndex()
     const indexMap = messageIndexMap()
 
-    for (let index = 0; index < records.length; index++) {
-      const record = records[index]
+    for (const record of records) {
       if (revert?.messageID && record.id === revert.messageID) {
         break
       }
@@ -254,7 +238,7 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
       const messageInfo = infoMap.get(record.id)
       const recordCacheKey = makeInstanceCacheKey(instanceId, record.id)
       const recordIndex = indexMap.get(record.id) ?? 0
-      const isQueued = record.role === "user" && (globalAssistantIndex === -1 || recordIndex > globalAssistantIndex)
+      const isQueued = record.role === "user" && (assistantIndex === -1 || recordIndex > assistantIndex)
 
       let messageItem: MessageDisplayItem | null = null
       if (hasRenderableContent(record, textAndReasoningParts, messageInfo)) {
@@ -285,8 +269,8 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
         const partVersion = typeof toolPart.version === "number" ? toolPart.version : 0
         const messageVersion = record.revision
         const key = `${record.id}:${toolPart.id ?? toolIndex}`
-        const toolCacheKey = makeInstanceCacheKey(instanceId, key)
-        let toolItem = toolItemCache.get(toolCacheKey)
+        const cacheKey = makeInstanceCacheKey(instanceId, key)
+        let toolItem = toolItemCache.get(cacheKey)
         if (!toolItem) {
           toolItem = {
             type: "tool",
@@ -297,7 +281,7 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
             messageVersion,
             partVersion,
           }
-          toolItemCache.set(toolCacheKey, toolItem)
+          toolItemCache.set(cacheKey, toolItem)
         } else {
           toolItem.key = key
           toolItem.toolPart = toolPart
@@ -307,7 +291,7 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
           toolItem.partVersion = partVersion
         }
         toolItems.push(toolItem)
-        usedToolKeys.add(toolCacheKey)
+        usedToolKeys.add(cacheKey)
       })
 
       if (!messageItem && toolItems.length === 0) {
@@ -322,7 +306,6 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
         messageItemCache.delete(key)
       }
     }
-
     for (const key of toolItemCache.keys()) {
       if (!usedToolKeys.has(key)) {
         toolItemCache.delete(key)
@@ -332,118 +315,44 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
     return blocks
   })
 
-  createEffect(() => {
-    const records = messageRecords()
-    const total = records.length
-    const requireFullHistory = forceFullHistory()
-    if (total === 0) {
-      setVisibleRange({ start: 0, end: 0 })
-      setRangeInitialized(false)
-      return
-    }
-
-    setVisibleRange((current) => {
-      if (!rangeInitialized() || requireFullHistory) {
-        const start = requireFullHistory ? 0 : Math.max(0, total - INITIAL_BATCH_COUNT)
-        if (!rangeInitialized()) {
-          setRangeInitialized(true)
-        }
-        if (requireFullHistory) {
-          setForceFullHistory(false)
-        }
-        return { start, end: total }
-      }
-      const nextEnd = total
-      let nextStart = current.start
-      if (nextStart > nextEnd) {
-        nextStart = Math.max(0, nextEnd - INITIAL_BATCH_COUNT)
-      }
-      return { start: nextStart, end: nextEnd }
-    })
-  })
-
-  createEffect(() => {
-    measurementVersion()
-    const range = visibleRange()
-    if (range.start <= 0) {
-      setVirtualPadding(0)
-      return
-    }
-    const records = messageRecords()
-    const trimmed = records.slice(0, range.start)
-    if (trimmed.length === 0) {
-      setVirtualPadding(0)
-      return
-    }
-    const fallback = getAverageMeasuredHeight()
-    let total = 0
-    for (const record of trimmed) {
-      const entry = messageMeasurements.get(record.id)
-      total += entry?.height ?? fallback
-    }
-    setVirtualPadding(total)
-  })
-
   const changeToken = createMemo(() => {
     const revisionValue = sessionRevision()
-    const range = visibleRange()
     const blocks = displayBlocks()
     if (blocks.length === 0) {
-      return `${revisionValue}:${range.start}:${range.end}:empty`
+      return `${revisionValue}:empty`
     }
     const lastBlock = blocks[blocks.length - 1]
     const lastTool = lastBlock.toolItems[lastBlock.toolItems.length - 1]
     const tailSignature = lastTool
       ? `tool:${lastTool.key}:${lastTool.partVersion}`
       : `msg:${lastBlock.record.id}:${lastBlock.record.revision}`
-    return `${revisionValue}:${range.start}:${range.end}:${tailSignature}`
+    return `${revisionValue}:${tailSignature}`
+  })
+
+  const scrollCache = useScrollCache({
+    instanceId: () => props.instanceId,
+    sessionId: () => props.sessionId,
+    scope: SCROLL_SCOPE,
   })
 
   const [autoScroll, setAutoScroll] = createSignal(true)
-  const [showScrollButton, setShowScrollButton] = createSignal(false)
+  const [showScrollTopButton, setShowScrollTopButton] = createSignal(false)
+  const [showScrollBottomButton, setShowScrollBottomButton] = createSignal(false)
   let containerRef: HTMLDivElement | undefined
-
-  function captureScrollSnapshot() {
-    if (!containerRef) return { height: 0, top: 0 }
-    return { height: containerRef.scrollHeight, top: containerRef.scrollTop }
-  }
-
-  function restoreScrollSnapshot(snapshot?: { height: number; top: number }) {
-    if (!containerRef || !snapshot) return
-    requestAnimationFrame(() => {
-      if (!containerRef) return
-      const delta = containerRef.scrollHeight - snapshot.height
-      containerRef.scrollTop = snapshot.top + delta
-    })
-  }
-
-  function prependChunk(amount = PREPEND_CHUNK_COUNT) {
-    if (visibleRange().start === 0) {
-      return
-    }
-    const snapshot = captureScrollSnapshot()
-    setVisibleRange((range) => {
-      if (range.start === 0) {
-        return range
-      }
-      const nextStart = Math.max(0, range.start - amount)
-      return { start: nextStart, end: range.end }
-    })
-    restoreScrollSnapshot(snapshot)
-  }
-
-  function loadAllOlderMessages() {
-    if (visibleRange().start === 0) {
-      return
-    }
-    const snapshot = captureScrollSnapshot()
-    setVisibleRange((range) => ({ start: 0, end: range.end }))
-    restoreScrollSnapshot(snapshot)
-  }
 
   function isNearBottom(element: HTMLDivElement, offset = 48) {
     const { scrollTop, scrollHeight, clientHeight } = element
     return scrollHeight - (scrollTop + clientHeight) <= offset
+  }
+
+  function isNearTop(element: HTMLDivElement, offset = 48) {
+    return element.scrollTop <= offset
+  }
+
+  function updateScrollIndicators(element: HTMLDivElement) {
+    const hasItems = displayBlocks().length > 0
+    setShowScrollBottomButton(hasItems && !isNearBottom(element))
+    setShowScrollTopButton(hasItems && !isNearTop(element))
   }
 
   function scrollToBottom(immediate = false) {
@@ -451,7 +360,23 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
     const behavior = immediate ? "auto" : "smooth"
     containerRef.scrollTo({ top: containerRef.scrollHeight, behavior })
     setAutoScroll(true)
-    persistScrollState()
+    requestAnimationFrame(() => {
+      if (!containerRef) return
+      updateScrollIndicators(containerRef)
+      persistScrollState()
+    })
+  }
+
+  function scrollToTop(immediate = false) {
+    if (!containerRef) return
+    const behavior = immediate ? "auto" : "smooth"
+    setAutoScroll(false)
+    containerRef.scrollTo({ top: 0, behavior })
+    requestAnimationFrame(() => {
+      if (!containerRef) return
+      updateScrollIndicators(containerRef)
+      persistScrollState()
+    })
   }
 
   function persistScrollState() {
@@ -461,22 +386,19 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
 
   function handleScroll(event: Event) {
     if (!containerRef) return
-    const atBottom = isNearBottom(containerRef)
-    setShowScrollButton(!atBottom)
-    const atAbsoluteTop = containerRef.scrollTop <= 4
-    setReachedAbsoluteTop(atAbsoluteTop)
+    updateScrollIndicators(containerRef)
     if (event.isTrusted) {
-      setAutoScroll(atBottom)
-      if (containerRef.scrollTop <= LOAD_MORE_THRESHOLD_PX && visibleRange().start > 0) {
-        prependChunk()
+      const atBottom = isNearBottom(containerRef)
+      if (!atBottom) {
+        setAutoScroll(false)
+      } else {
+        setAutoScroll(true)
       }
     }
     persistScrollState()
   }
 
   createEffect(() => {
-    const sessionId = props.sessionId
-    store()
     const target = containerRef
     if (!target) return
     scrollCache.restore(target, {
@@ -484,17 +406,16 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
       onApplied: (snapshot) => {
         if (snapshot) {
           setAutoScroll(snapshot.atBottom)
-          setShowScrollButton(!snapshot.atBottom)
         } else {
           const atBottom = isNearBottom(target)
           setAutoScroll(atBottom)
-          setShowScrollButton(!atBottom)
         }
+        updateScrollIndicators(target)
       },
     })
-    void sessionId
   })
 
+  let previousToken: string | undefined
   createEffect(() => {
     const token = changeToken()
     if (!token || token === previousToken) {
@@ -508,7 +429,8 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
 
   createEffect(() => {
     if (messageRecords().length === 0) {
-      setShowScrollButton(false)
+      setShowScrollTopButton(false)
+      setShowScrollBottomButton(false)
       setAutoScroll(true)
     }
   })
@@ -572,7 +494,7 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
         }}
         onScroll={handleScroll}
       >
-        <Show when={!props.loading && messageRecords().length === 0}>
+        <Show when={!props.loading && displayBlocks().length === 0}>
           <div class="empty-state">
             <div class="empty-state-content">
               <div class="flex flex-col items-center gap-3 mb-6">
@@ -602,64 +524,40 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
           </div>
         </Show>
 
-        <Show when={virtualPadding() > 0}>
-          <div class="message-stream-virtual-padding" style={{ height: `${virtualPadding()}px` }} aria-hidden="true" />
-        </Show>
-
-        <Show when={showLoadOlderButton()}>
-          <div class="message-stream-load-older">
-            <button type="button" class="message-stream-load-older-button" onClick={loadAllOlderMessages}>
-              Load older messages
-            </button>
-          </div>
-        </Show>
-
         <For each={displayBlocks()}>
-          {(block) => {
-            let blockRef: HTMLDivElement | undefined
+          {(block) => (
+            <div class="message-stream-block" data-message-id={block.record.id}>
+              <Show when={block.messageItem} keyed>
+                {(message) => (
+                  <MessageItem
+                    record={message.record}
+                    messageInfo={message.messageInfo}
+                    combinedParts={message.combinedParts}
+                    orderedParts={message.orderedParts}
+                    instanceId={props.instanceId}
+                    sessionId={props.sessionId}
+                    isQueued={message.isQueued}
+                    onRevert={props.onRevert}
+                    onFork={props.onFork}
+                  />
+                )}
+              </Show>
 
-            const scheduleMeasurement = () => {
-              if (!blockRef) return
-              requestAnimationFrame(() => {
-                if (!blockRef) return
-                updateMeasurementCache(block.record.id, block.record.revision, blockRef.clientHeight)
-              })
-            }
-
-            createEffect(() => {
-              void block.record.revision
-              scheduleMeasurement()
-            })
-
-            return (
-              <div
-                class="message-stream-block"
-                data-message-id={block.record.id}
-                ref={(element) => {
-                  blockRef = element || undefined
-                  if (element) {
-                    scheduleMeasurement()
+              <For each={block.toolItems}>
+                {(item) => {
+                  const toolState = item.toolPart.state as ToolState | undefined
+                  const hasToolState =
+                    Boolean(toolState) && (isToolStateRunning(toolState) || isToolStateCompleted(toolState) || isToolStateError(toolState))
+                  const taskSessionId = hasToolState ? extractTaskSessionId(toolState) : ""
+                  const taskLocation = taskSessionId ? findTaskSessionLocation(taskSessionId) : null
+                  const handleGoToTaskSession = (event: MouseEvent) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (!taskLocation) return
+                    navigateToTaskSession(taskLocation)
                   }
-                }}
-              >
-                <Show when={block.messageItem} keyed>
-                  {(message) => (
-                    <MessageItem
-                      record={message.record}
-                      messageInfo={message.messageInfo}
-                      combinedParts={message.combinedParts}
-                      orderedParts={message.orderedParts}
-                      instanceId={props.instanceId}
-                      sessionId={props.sessionId}
-                      isQueued={message.isQueued}
-                      onRevert={props.onRevert}
-                      onFork={props.onFork}
-                    />
-                  )}
-                </Show>
 
-                <For each={block.toolItems}>
-                  {(item) => (
+                  return (
                     <div class="tool-call-message" data-key={item.key}>
                       <div class="tool-call-header-label">
                         <div class="tool-call-header-meta">
@@ -667,6 +565,17 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
                           <span>Tool Call</span>
                           <span class="tool-name">{item.toolPart.tool || "unknown"}</span>
                         </div>
+                        <Show when={taskSessionId}>
+                          <button
+                            class="tool-call-header-button"
+                            type="button"
+                            disabled={!taskLocation}
+                            onClick={handleGoToTaskSession}
+                            title={!taskLocation ? "Session not available yet" : "Go to session"}
+                          >
+                            Go to Session
+                          </button>
+                        </Show>
                       </div>
                       <ToolCall
                         toolCall={item.toolPart}
@@ -678,21 +587,40 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
                         sessionId={props.sessionId}
                       />
                     </div>
-                  )}
-                </For>
-              </div>
-            )
-          }}
+                  )
+                }}
+              </For>
+            </div>
+          )}
         </For>
       </div>
 
-      <Show when={showScrollButton()}>
+      <Show when={showScrollTopButton() || showScrollBottomButton()}>
         <div class="message-scroll-button-wrapper">
-          <button type="button" class="message-scroll-button" onClick={() => scrollToBottom()} aria-label="Scroll to latest message">
-            <span class="message-scroll-icon" aria-hidden="true">
-              ↓
-            </span>
-          </button>
+          <Show when={showScrollTopButton()}>
+            <button
+              type="button"
+              class="message-scroll-button"
+              onClick={() => scrollToTop()}
+              aria-label="Scroll to first message"
+            >
+              <span class="message-scroll-icon" aria-hidden="true">
+                ↑
+              </span>
+            </button>
+          </Show>
+          <Show when={showScrollBottomButton()}>
+            <button
+              type="button"
+              class="message-scroll-button"
+              onClick={() => scrollToBottom()}
+              aria-label="Scroll to latest message"
+            >
+              <span class="message-scroll-icon" aria-hidden="true">
+                ↓
+              </span>
+            </button>
+          </Show>
         </div>
       </Show>
     </div>

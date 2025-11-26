@@ -40,14 +40,12 @@ const TOOL_CALL_CACHE_SCOPE = "tool-call"
 function makeRenderCacheKey(
   toolCallId?: string | null,
   messageId?: string,
-  messageVersion?: number,
-  partVersion?: number,
+  partId?: string | null,
   variant = "default",
 ) {
   const messageComponent = messageId ?? "unknown-message"
-  const toolCallComponent = toolCallId ?? "unknown-tool-call"
-  const versionComponent = `${messageVersion ?? 0}:${partVersion ?? 0}`
-  return `${messageComponent}:${toolCallComponent}:${versionComponent}:${variant}`
+  const toolCallComponent = partId ?? toolCallId ?? "unknown-tool-call"
+  return `${messageComponent}:${toolCallComponent}:${variant}`
 }
 
 
@@ -326,8 +324,7 @@ export default function ToolCall(props: ToolCallProps) {
   const cacheContext = createMemo(() => ({
     toolCallId: toolCallId(),
     messageId: props.messageId,
-    messageVersion: props.messageVersion ?? 0,
-    partVersion: props.partVersion ?? 0,
+    partId: props.toolCall?.id ?? null,
   }))
 
   const createVariantCache = (variant: string) =>
@@ -337,20 +334,14 @@ export default function ToolCall(props: ToolCallProps) {
       scope: TOOL_CALL_CACHE_SCOPE,
       key: () => {
         const context = cacheContext()
-        return makeRenderCacheKey(
-          context.toolCallId || undefined,
-          context.messageId,
-          context.messageVersion,
-          context.partVersion,
-          variant,
-        )
+        return makeRenderCacheKey(context.toolCallId || undefined, context.messageId, context.partId, variant)
       },
     })
 
   const diffCache = createVariantCache("diff")
   const permissionDiffCache = createVariantCache("permission-diff")
   const markdownCache = createVariantCache("markdown")
-  const permissionState = createMemo(() => store().getPermissionState(props.messageId, toolCallId() || props.toolCall?.id))
+  const permissionState = createMemo(() => store().getPermissionState(props.messageId, props.toolCall?.id))
   const pendingPermission = createMemo(() => {
     const state = permissionState()
     if (state) {
