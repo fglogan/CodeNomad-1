@@ -1,4 +1,4 @@
-import { Show, createMemo, createEffect, onCleanup, type Component } from "solid-js"
+import { Show, createMemo, createEffect, type Component } from "solid-js"
 import type { Session } from "../../types/session"
 import type { Attachment } from "../../types/attachment"
 import type { ClientPart } from "../../types/message"
@@ -52,23 +52,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         return textParts.map((part) => part.text).join("\n")
       }
     }
-
-    const currentSession = session()
-    if (!currentSession) return null
-
-    const targetMessage = currentSession.messages.find((m) => m.id === messageId)
-    const targetInfo = currentSession.messagesInfo.get(messageId)
-    if (!targetMessage || targetInfo?.role !== "user") {
-      return null
-    }
-
-    const textParts = targetMessage.parts.filter(isTextPart)
-    if (textParts.length === 0) {
-      return null
-    }
-
-    return textParts.map((p) => p.text).join("\n")
+ 
+    return null
   }
+
 
   async function handleRevert(messageId: string) {
     const instance = instances().get(props.instanceId)

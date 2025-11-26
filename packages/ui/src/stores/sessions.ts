@@ -28,7 +28,6 @@ import {
   setSessionDraftPrompt,
 } from "./session-state"
 import { getDefaultModel } from "./session-models"
-import { computeDisplayParts, removeSessionIndexes } from "./session-messages"
 import {
   createSession,
   deleteSession,
@@ -79,7 +78,6 @@ export {
   clearActiveParentSession,
   clearInstanceDraftPrompts,
   clearSessionDraftPrompt,
-  computeDisplayParts,
   createSession,
   deleteSession,
   executeCustomCommand,
@@ -102,7 +100,6 @@ export {
   loadMessages,
   loading,
   providers,
-  removeSessionIndexes,
   sendMessage,
   sessionInfoByInstance,
   sessions,

@@ -41,37 +41,27 @@ export function seedSessionMessagesV2(
   if (!session || !Array.isArray(messages)) return
   const store = messageStoreBus.getOrCreate(instanceId)
   const metadata: SessionMetadata = "id" in session ? { id: session.id, title: session.title, parentId: session.parentId ?? null } : session
-  const messageIds = messages.map((message) => message.id)
 
   store.addOrUpdateSession({
     id: metadata.id,
     title: metadata.title,
     parentId: metadata.parentId ?? null,
-    messageIds,
     revert: (session as Session)?.revert ?? undefined,
   })
 
-  messages.forEach((message) => {
-    store.upsertMessage({
-      id: message.id,
-      sessionId: message.sessionId,
-      role: message.type,
-      status: normalizeStatus(message.status),
-      createdAt: message.timestamp,
-      updatedAt: message.timestamp,
-      parts: message.parts,
-      isEphemeral: message.status === "sending" || message.status === "streaming",
-      bumpRevision: false,
-    })
-    const info = messageInfos?.get(message.id)
-    if (info) {
-      store.setMessageInfo(message.id, info)
-    }
-  })
+  const normalizedMessages = messages.map((message) => ({
+    id: message.id,
+    sessionId: message.sessionId,
+    role: message.type,
+    status: normalizeStatus(message.status),
+    createdAt: message.timestamp,
+    updatedAt: message.timestamp,
+    parts: message.parts,
+    isEphemeral: message.status === "sending" || message.status === "streaming",
+    bumpRevision: false,
+  }))
 
-  if (messageInfos) {
-    store.rebuildUsage(metadata.id, messageInfos.values())
-  }
+  store.hydrateMessages(metadata.id, normalizedMessages, messageInfos?.values())
 }
 
 interface MessageInfoOptions {

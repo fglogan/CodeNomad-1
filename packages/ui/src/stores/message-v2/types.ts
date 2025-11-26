@@ -1,4 +1,4 @@
-import type { ClientPart, MessageInfo } from "../../types/message"
+import type { ClientPart } from "../../types/message"
 import type { Permission } from "@opencode-ai/sdk"
 
 export type MessageStatus = "sending" | "sent" | "streaming" | "complete" | "error"

@@ -4,7 +4,7 @@ import { instances } from "./instances"
 import { addRecentModelPreference, setAgentModelPreference } from "./preferences"
 import { sessions, withSession } from "./session-state"
 import { getDefaultModel, isModelValid } from "./session-models"
-import { updateSessionInfo } from "./session-messages"
+import { updateSessionInfo } from "./message-v2/session-info"
 import { messageStoreBus } from "./message-v2/bus"
 
 const ID_LENGTH = 26

@@ -29,13 +29,13 @@ CodeNomad is a cross-platform desktop application built with Electron that provi
 │  │  │  State Management (SolidJS Stores)         │  │  │
 │  │  │  - instances[]                             │  │  │
 │  │  │  - sessions[] per instance                 │  │  │
-│  │  │  - messages[] per session                  │  │  │
+│  │  │  - normalized message store per session    │  │  │
 │  │  └────────────────────────────────────────────┘  │  │
 │  │  ┌────────────────────────────────────────────┐  │  │
 │  │  │  UI Components                             │  │  │
 │  │  │  - InstanceTabs                            │  │  │
 │  │  │  - SessionTabs                             │  │  │
-│  │  │  - MessageStream                           │  │  │
+│  │  │  - MessageStreamV2                        │  │  │
 │  │  │  - PromptInput                             │  │  │
 │  │  └────────────────────────────────────────────┘  │  │
 │  └──────────────────────────────────────────────────┘  │

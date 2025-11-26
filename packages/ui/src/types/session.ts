@@ -1,9 +1,8 @@
-import type { Message, MessageInfo } from "./message"
-import type { 
+import type {
   Session as SDKSession,
-  Agent as SDKAgent, 
+  Agent as SDKAgent,
   Provider as SDKProvider,
-  Model as SDKModel
+  Model as SDKModel,
 } from "@opencode-ai/sdk"
 
 // Export SDK types for external use
@@ -17,18 +16,17 @@ export type {
 export type SessionStatus = "idle" | "working" | "compacting"
 
 // Our client-specific Session interface extending SDK Session
-export interface Session extends Omit<import("@opencode-ai/sdk").Session, 'projectID' | 'directory' | 'parentID'> {
-  instanceId: string  // Client-specific field
-  parentId: string | null  // Client-specific field (override parentID)
-  agent: string  // Client-specific field
-  model: {  // Client-specific field
+export interface Session
+  extends Omit<import("@opencode-ai/sdk").Session, "projectID" | "directory" | "parentID"> {
+  instanceId: string // Client-specific field
+  parentId: string | null // Client-specific field (override parentID)
+  agent: string // Client-specific field
+  model: {
     providerId: string
     modelId: string
   }
-  messages: Message[]  // Client-specific field
-  messagesInfo: Map<string, MessageInfo>  // Client-specific field
-  version: string  // Include version from SDK Session
-  pendingPermission?: boolean  // Indicates if session is waiting on user permission
+  version: string // Include version from SDK Session
+  pendingPermission?: boolean // Indicates if session is waiting on user permission
 }
 
 // Adapter function to convert SDK Session to client Session
@@ -36,7 +34,7 @@ export function createClientSession(
   sdkSession: import("@opencode-ai/sdk").Session,
   instanceId: string,
   agent: string = "",
-  model: { providerId: string; modelId: string } = { providerId: "", modelId: "" }
+  model: { providerId: string; modelId: string } = { providerId: "", modelId: "" },
 ): Session {
   return {
     ...sdkSession,
@@ -44,8 +42,6 @@ export function createClientSession(
     parentId: sdkSession.parentID || null,
     agent,
     model,
-    messages: [],
-    messagesInfo: new Map(),
   }
 }
 

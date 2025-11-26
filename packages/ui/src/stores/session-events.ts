@@ -22,7 +22,8 @@ import {
   setSessions,
   withSession,
 } from "./session-state"
-import { normalizeMessagePart, updateSessionInfo } from "./session-messages"
+import { normalizeMessagePart } from "./message-v2/normalizers"
+import { updateSessionInfo } from "./message-v2/session-info"
 import { loadMessages } from "./session-api"
 import { setSessionCompactionState } from "./session-compaction"
 import {
@@ -89,7 +90,7 @@ function handleMessageUpdate(instanceId: string, event: MessageUpdateEvent | Mes
     if (!session) return
 
     const store = messageStoreBus.getOrCreate(instanceId)
-    const messageInfo = event.properties?.message as MessageInfo | undefined
+    const messageInfo = (event as any)?.properties?.message as MessageInfo | undefined
     const role: MessageRole = resolveMessageRole(messageInfo)
     const createdAt = typeof messageInfo?.time?.created === "number" ? messageInfo.time.created : Date.now()
 
@@ -204,8 +205,6 @@ function handleSessionUpdate(instanceId: string, event: EventSessionUpdated): vo
             created: Date.now(),
             updated: Date.now(),
           },
-      messages: [],
-      messagesInfo: new Map(),
     } as any
 
     setSessions((prev) => {

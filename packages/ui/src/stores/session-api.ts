@@ -22,7 +22,8 @@ import {
   setLoading,
 } from "./session-state"
 import { DEFAULT_MODEL_OUTPUT_LIMIT, getDefaultModel, isModelValid } from "./session-models"
-import { normalizeMessagePart, updateSessionInfo } from "./session-messages"
+import { normalizeMessagePart } from "./message-v2/normalizers"
+import { updateSessionInfo } from "./message-v2/session-info"
 import { seedSessionMessagesV2 } from "./message-v2/bridge"
 
 interface SessionForkResponse {
@@ -92,8 +93,6 @@ async function fetchSessions(instanceId: string): Promise<void> {
               diff: apiSession.revert.diff,
             }
           : undefined,
-        messages: [],
-        messagesInfo: new Map(),
       })
     }
 
@@ -188,8 +187,6 @@ async function createSession(instanceId: string, agent?: string): Promise<Sessio
             diff: response.data.revert.diff,
           }
         : undefined,
-      messages: [],
-      messagesInfo: new Map(),
     }
 
     setSessions((prev) => {
@@ -291,8 +288,6 @@ async function forkSession(
           diff: info.revert.diff,
         }
       : undefined,
-    messages: [],
-    messagesInfo: new Map(),
   } as unknown as Session
 
   setSessions((prev) => {
