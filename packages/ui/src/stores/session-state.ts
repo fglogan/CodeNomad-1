@@ -109,8 +109,6 @@ function withSession(instanceId: string, sessionId: string, updater: (session: S
 
   const updatedSession = {
     ...session,
-    messages: [...session.messages],
-    messagesInfo: new Map(session.messagesInfo),
   }
 
   setSessions((prev) => {

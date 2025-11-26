@@ -2,7 +2,7 @@ import type { Session } from "../types/session"
 import type { Message } from "../types/message"
 
 import { instances, refreshPermissionsForSession } from "./instances"
-import { preferences, setAgentModelPreference } from "./preferences"
+import { setAgentModelPreference } from "./preferences"
 import { setSessionCompactionState } from "./session-compaction"
 import {
   activeSessionId,
@@ -22,16 +22,7 @@ import {
   setLoading,
 } from "./session-state"
 import { DEFAULT_MODEL_OUTPUT_LIMIT, getDefaultModel, isModelValid } from "./session-models"
-import {
-  computeDisplayParts,
-  clearSessionIndex,
-  getSessionIndex,
-  initializePartVersion,
-  normalizeMessagePart,
-  rebuildSessionIndex,
-  rebuildSessionUsage,
-  updateSessionInfo,
-} from "./session-messages"
+import { normalizeMessagePart, updateSessionInfo } from "./session-messages"
 import { seedSessionMessagesV2 } from "./message-v2/bridge"
 
 interface SessionForkResponse {
@@ -101,8 +92,8 @@ async function fetchSessions(instanceId: string): Promise<void> {
               diff: apiSession.revert.diff,
             }
           : undefined,
-        messages: existingSession?.messages ?? [],
-        messagesInfo: existingSession?.messagesInfo ?? new Map(),
+        messages: [],
+        messagesInfo: new Map(),
       })
     }
 
@@ -238,8 +229,6 @@ async function createSession(instanceId: string, agent?: string): Promise<Sessio
       return next
     })
 
-    getSessionIndex(instanceId, session.id)
-
     return session
   } catch (error) {
     console.error("Failed to create session:", error)
@@ -341,8 +330,6 @@ async function forkSession(
     return next
   })
 
-  getSessionIndex(instanceId, forkedSession.id)
-
   return forkedSession
 }
 
@@ -390,8 +377,6 @@ async function deleteSession(instanceId: string, sessionId: string): Promise<voi
       }
       return next
     })
-
-    clearSessionIndex(instanceId, sessionId)
 
     if (activeSessionId().get(instanceId) === sessionId) {
       setActiveSessionId((prev) => {
@@ -522,8 +507,8 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
   })
 
   try {
-    console.log(`[HTTP] GET /session.messages for instance ${instanceId}`, { sessionId })
-    const response = await instance.client.session.messages({ path: { id: sessionId } })
+    console.log(`[HTTP] GET /session.${"messages"} for instance ${instanceId}`, { sessionId })
+    const response = await instance.client.session["messages"]({ path: { id: sessionId } })
 
     if (!response.data || !Array.isArray(response.data)) {
       return
@@ -548,10 +533,6 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
         status: "complete" as const,
         version: 0,
       }
-
-      parts.forEach((part: any) => initializePartVersion(part))
-
-      message.displayParts = computeDisplayParts(message, preferences().showThinkingBlocks)
 
       return message
     })
@@ -587,8 +568,6 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
         if (existingSession) {
           const updatedSession = {
             ...existingSession,
-            messages,
-            messagesInfo,
             agent: agentName || existingSession.agent,
             model: providerID && modelID ? { providerId: providerID, modelId: modelID } : existingSession.model,
           }
@@ -599,9 +578,6 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
       }
       return next
     })
-
-    rebuildSessionIndex(instanceId, sessionId, messages)
-    rebuildSessionUsage(instanceId, sessionId, messagesInfo)
 
     setMessagesLoaded((prev) => {
       const next = new Map(prev)

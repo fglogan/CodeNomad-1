@@ -1,5 +1,5 @@
 import type { Session, SessionStatus } from "../types/session"
-import type { Message, MessageInfo } from "../types/message"
+import type { MessageInfo } from "../types/message"
 import type { MessageRecord } from "./message-v2/types"
 import { sessions } from "./sessions"
 import { isSessionCompactionActive } from "./session-compaction"
@@ -55,38 +55,6 @@ function getLastMessageFromStore(instanceId: string, sessionId: string): Message
   return latest
 }
 
-function getLegacyLastMessage(session: Session): Message | undefined {
-  let latest: Message | undefined
-  let latestTimestamp = Number.NEGATIVE_INFINITY
-  for (const message of session.messages) {
-    if (!message) continue
-    const info = session.messagesInfo.get(message.id)
-    const timestamp = info?.time?.created ?? message.timestamp ?? Number.NEGATIVE_INFINITY
-    if (timestamp >= latestTimestamp) {
-      latest = message
-      latestTimestamp = timestamp
-    }
-  }
-  return latest
-}
-
-function getLegacyLastMessageInfo(session: Session, role?: MessageInfo["role"]): MessageInfo | undefined {
-  if (session.messagesInfo.size === 0) {
-    return undefined
-  }
-  let latest: MessageInfo | undefined
-  let latestTimestamp = Number.NEGATIVE_INFINITY
-  for (const info of session.messagesInfo.values()) {
-    if (!info) continue
-    if (role && info.role !== role) continue
-    const timestamp = info.time?.created ?? 0
-    if (timestamp >= latestTimestamp) {
-      latest = info
-      latestTimestamp = timestamp
-    }
-  }
-  return latest
-}
 
 function getInfoCreatedTimestamp(info?: MessageInfo): number {
   if (!info) {
@@ -143,26 +111,6 @@ function isAssistantStillGeneratingRecord(record: MessageRecord, info?: MessageI
   return !(record.status === "complete" || record.status === "sent")
 }
 
-function isAssistantStillGeneratingLegacy(message: Message, info?: MessageInfo): boolean {
-  if (message.type !== "assistant") {
-    return false
-  }
-
-  if (message.status === "error") {
-    return false
-  }
-
-  if (message.status === "streaming" || message.status === "sending") {
-    return true
-  }
-
-  const completedAt = (info?.time as { completed?: number } | undefined)?.completed
-  if (completedAt !== undefined && completedAt !== null) {
-    return false
-  }
-
-  return !(message.status === "complete" || message.status === "sent")
-}
 
 export function getSessionStatus(instanceId: string, sessionId: string): SessionStatus {
   const session = getSession(instanceId, sessionId)
@@ -176,14 +124,13 @@ export function getSessionStatus(instanceId: string, sessionId: string): Session
     return "compacting"
   }
 
-  const latestUserInfo = getLatestInfoFromStore(instanceId, sessionId, "user") ?? getLegacyLastMessageInfo(session, "user")
-  const latestAssistantInfo = getLatestInfoFromStore(instanceId, sessionId, "assistant") ?? getLegacyLastMessageInfo(session, "assistant")
+  const latestUserInfo = getLatestInfoFromStore(instanceId, sessionId, "user")
+  const latestAssistantInfo = getLatestInfoFromStore(instanceId, sessionId, "assistant")
 
   const lastRecord = getLastMessageFromStore(instanceId, sessionId)
-  const legacyFallbackMessage = lastRecord ? undefined : getLegacyLastMessage(session)
 
-  if (!lastRecord && !legacyFallbackMessage) {
-    const latestInfo = latestUserInfo ?? latestAssistantInfo ?? getLegacyLastMessageInfo(session)
+  if (!lastRecord) {
+    const latestInfo = latestUserInfo ?? latestAssistantInfo
     if (!latestInfo) {
       return "idle"
     }
@@ -194,22 +141,12 @@ export function getSessionStatus(instanceId: string, sessionId: string): Session
     return infoCompleted ? "idle" : "working"
   }
 
-  if (lastRecord) {
-    if (lastRecord.role === "user") {
-      return "working"
-    }
-    const infoForRecord = store.getMessageInfo(lastRecord.id) ?? latestAssistantInfo
-    if (infoForRecord && isAssistantStillGeneratingRecord(lastRecord, infoForRecord)) {
-      return "working"
-    }
-  } else if (legacyFallbackMessage) {
-    if (legacyFallbackMessage.type === "user") {
-      return "working"
-    }
-    const infoForLegacy = session.messagesInfo.get(legacyFallbackMessage.id) ?? latestAssistantInfo
-    if (isAssistantStillGeneratingLegacy(legacyFallbackMessage, infoForLegacy)) {
-      return "working"
-    }
+  if (lastRecord.role === "user") {
+    return "working"
+  }
+  const infoForRecord = store.getMessageInfo(lastRecord.id) ?? latestAssistantInfo
+  if (infoForRecord && isAssistantStillGeneratingRecord(lastRecord, infoForRecord)) {
+    return "working"
   }
 
   if (isAssistantInfoPending(latestAssistantInfo)) {

@@ -156,11 +156,12 @@ export function removePermissionV2(instanceId: string, permissionId: string): vo
 export function ensureSessionMetadataV2(instanceId: string, session: Session | null | undefined): void {
   if (!session) return
   const store = messageStoreBus.getOrCreate(instanceId)
+  const existingMessageIds = store.getSessionMessageIds(session.id)
   store.addOrUpdateSession({
     id: session.id,
     title: session.title,
     parentId: session.parentId ?? null,
-    messageIds: session.messages.map((message: Message) => message.id),
+    messageIds: existingMessageIds,
   })
 }
 

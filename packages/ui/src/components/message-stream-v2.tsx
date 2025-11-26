@@ -2,8 +2,8 @@ import { For, Show, createMemo, createSignal, createEffect, onCleanup } from "so
 import MessageItem from "./message-item"
 import ToolCall from "./tool-call"
 import Kbd from "./kbd"
-import type { Message, MessageInfo, ClientPart } from "../types/message"
-import { computeDisplayParts } from "../stores/session-messages"
+import type { Message, MessageInfo, ClientPart, MessageDisplayParts } from "../types/message"
+import { partHasRenderableText } from "../types/message"
 import { getSessionInfo } from "../stores/sessions"
 import { showCommandPalette } from "../stores/command-palette"
 import { messageStoreBus } from "../stores/message-v2/bus"
@@ -69,6 +69,27 @@ function recordToMessage(record: MessageRecord): Message {
     status: record.status,
     version: record.revision,
   }
+}
+
+function computeDisplayPartsForMessage(message: Message, showThinking: boolean): MessageDisplayParts {
+  const text: ClientPart[] = []
+  const tool: ClientPart[] = []
+  const reasoning: ClientPart[] = []
+
+  for (const part of message.parts) {
+    if (part.type === "text" && !part.synthetic && partHasRenderableText(part)) {
+      text.push(part)
+    } else if (part.type === "tool") {
+      tool.push(part)
+    } else if (part.type === "reasoning" && showThinking && partHasRenderableText(part)) {
+      reasoning.push(part)
+    }
+  }
+
+  const combined = reasoning.length > 0 ? [...text, ...reasoning] : [...text]
+  const version = typeof message.version === "number" ? message.version : 0
+
+  return { text, tool, reasoning, combined, showThinking, version }
 }
 
 function hasRenderableContent(message: Message, combinedParts: ClientPart[], info?: MessageInfo): boolean {
@@ -156,7 +177,7 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
       }
 
       const baseMessage = recordToMessage(record)
-      const displayParts = computeDisplayParts(baseMessage, showThinking)
+      const displayParts = computeDisplayPartsForMessage(baseMessage, showThinking)
       baseMessage.displayParts = displayParts
       const combinedParts = displayParts.combined
       const messageInfo = infoMap.get(record.id)

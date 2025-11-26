@@ -1,7 +1,8 @@
 import { createSignal } from "solid-js"
+import { produce } from "solid-js/store"
 import type { Instance, LogEntry } from "../types/instance"
 import type { LspStatus, Permission } from "@opencode-ai/sdk"
-import type { ClientPart, Message } from "../types/message"
+import type { ClientPart } from "../types/message"
 import { sdkManager } from "../lib/sdk-manager"
 import { sseManager } from "../lib/sse-manager"
 import { serverApi } from "../lib/api-client"
@@ -17,9 +18,10 @@ import {
 } from "./sessions"
 import { fetchCommands, clearCommands } from "./commands"
 import { preferences } from "./preferences"
-import { computeDisplayParts } from "./session-messages"
-import { withSession, setSessionPendingPermission } from "./session-state"
+import { setSessionPendingPermission } from "./session-state"
 import { setHasInstances } from "./ui"
+import { messageStoreBus } from "./message-v2/bus"
+import type { MessageRecord } from "./message-v2/types"
 
 
 const [instances, setInstances] = createSignal<Map<string, Instance>>(new Map())
@@ -539,23 +541,49 @@ function getPermissionSessionId(permission: Permission): string {
   return (permission as any).sessionID
 }
 
-function findToolPartForPermission(message: Message, permission: Permission): ClientPart | null {
-  const expectedCallId = permission.callID
-  for (const part of message.parts) {
-    if (part.type !== "tool") continue
-    const toolCallId = (part as any).callID
+function getPermissionMessageId(permission: Permission): string | undefined {
+  return (permission as any).messageID ?? (permission as any).messageId ?? undefined
+}
+
+function getPermissionCallIdentifier(permission: Permission): string | undefined {
+  return (
+    (permission as any).callID ??
+    (permission as any).callId ??
+    (permission as any).toolCallID ??
+    (permission as any).toolCallId ??
+    undefined
+  )
+}
+
+function findToolPartForPermission(record: MessageRecord, permission: Permission): { partId: string; part: ClientPart } | null {
+  const expectedCallId = getPermissionCallIdentifier(permission)
+  const permissionId = permission.id
+  const permissionMessageId = getPermissionMessageId(permission)
+
+  for (const partId of record.partIds) {
+    const entry = record.parts[partId]
+    if (!entry) continue
+    const part = entry.data
+    if (!part || part.type !== "tool") continue
+    const toolCallId = (part as any).callID ?? (part as any).callId
+    const partMessageId = (part as any).messageID ?? (part as any).messageId
+
     if (expectedCallId) {
       if (toolCallId === expectedCallId) {
-        return part as ClientPart
+        return { partId, part }
       }
-      if (!toolCallId && (part.id === expectedCallId || part.messageID === permission.messageID)) {
-        return part as ClientPart
+      if (!toolCallId && (part.id === expectedCallId || (permissionMessageId && partMessageId === permissionMessageId))) {
+        return { partId, part }
       }
       continue
     }
 
-    if ((toolCallId && toolCallId === permission.id) || part.id === permission.id || part.messageID === permission.messageID) {
-      return part as ClientPart
+    if (
+      (toolCallId && toolCallId === permissionId) ||
+      part.id === permissionId ||
+      (permissionMessageId && partMessageId === permissionMessageId)
+    ) {
+      return { partId, part }
     }
   }
   return null
@@ -564,23 +592,31 @@ function findToolPartForPermission(message: Message, permission: Permission): Cl
 function mutateToolPartPermission(
   instanceId: string,
   permission: Permission,
-  mutator: (part: ClientPart, message: Message) => boolean,
+  mutator: (part: ClientPart) => boolean,
 ): void {
-  const permissionSessionId = getPermissionSessionId(permission)
-  withSession(instanceId, permissionSessionId, (session) => {
-    const message = session.messages.find((msg) => msg.id === permission.messageID)
-    if (!message) return
-    const targetPart = findToolPartForPermission(message, permission)
-    if (!targetPart) return
+  const messageId = getPermissionMessageId(permission)
+  if (!messageId) return
+  const store = messageStoreBus.getOrCreate(instanceId)
+  const messageRecord = store.getMessage(messageId)
+  if (!messageRecord) return
+  const targetPart = findToolPartForPermission(messageRecord, permission)
+  if (!targetPart) return
 
-    const changed = mutator(targetPart, message)
-    if (!changed) return
-
-    const nextPartVersion = typeof targetPart.version === "number" ? targetPart.version + 1 : 1
-    targetPart.version = nextPartVersion
-    message.version = (message.version ?? 0) + 1
-    message.displayParts = computeDisplayParts(message, preferences().showThinkingBlocks)
-  })
+  store.setState(
+    "messages",
+    messageId,
+    produce((draft: MessageRecord) => {
+      const partRecord = draft.parts[targetPart.partId]
+      if (!partRecord) return
+      const changed = mutator(partRecord.data)
+      if (!changed) return
+      const nextVersion = typeof partRecord.data.version === "number" ? partRecord.data.version + 1 : 1
+      partRecord.data.version = nextVersion
+      partRecord.revision += 1
+      draft.revision += 1
+      draft.updatedAt = Date.now()
+    }),
+  )
 }
 
 function attachPermissionToToolPart(instanceId: string, permission: Permission, active: boolean): void {

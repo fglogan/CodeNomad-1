@@ -258,7 +258,7 @@ export function useCommands(options: UseCommandsOptions) {
         const revertState = store.getSessionRevert(sessionId) ?? session.revert
         let after = 0
         if (revertState?.messageID) {
-          const revertInfo = infoMap.get(revertState.messageID) ?? session.messagesInfo.get(revertState.messageID)
+          const revertInfo = infoMap.get(revertState.messageID) ?? store.getMessageInfo(revertState.messageID)
           after = revertInfo?.time?.created || 0
         }
 
@@ -267,7 +267,7 @@ export function useCommands(options: UseCommandsOptions) {
         for (let i = messageIds.length - 1; i >= 0; i--) {
           const id = messageIds[i]
           const record = store.getMessage(id)
-          const info = infoMap.get(id)
+          const info = infoMap.get(id) ?? store.getMessageInfo(id)
           if (record?.role === "user" && info?.time?.created) {
             if (after > 0 && info.time.created >= after) {
               continue
@@ -275,25 +275,6 @@ export function useCommands(options: UseCommandsOptions) {
             messageID = id
             restoredText = extractUserTextFromRecord(record)
             break
-          }
-        }
-
-        if (!messageID) {
-          for (let i = session.messages.length - 1; i >= 0; i--) {
-            const msg = session.messages[i]
-            const info = session.messagesInfo.get(msg.id)
-
-            if (msg.type === "user" && info?.time?.created) {
-              if (after > 0 && info.time.created >= after) {
-                continue
-              }
-              messageID = msg.id
-              const textParts = msg.parts.filter((p): p is ClientPart & { type: "text"; text: string } => p.type === "text" && typeof (p as any).text === "string")
-              if (textParts.length > 0) {
-                restoredText = textParts.map((p) => (p as any).text as string).join("\n")
-              }
-              break
-            }
           }
         }
 
@@ -312,16 +293,8 @@ export function useCommands(options: UseCommandsOptions) {
           })
 
           if (!restoredText) {
-            const revertedMessage = session.messages.find((m) => m.id === messageID)
-            const revertedInfo = session.messagesInfo.get(messageID)
-            if (revertedMessage && revertedInfo?.role === "user") {
-              const textParts = revertedMessage.parts.filter(
-                (p): p is ClientPart & { type: "text"; text: string } => p.type === "text" && typeof (p as any).text === "string",
-              )
-              if (textParts.length > 0) {
-                restoredText = textParts.map((p) => (p as any).text as string).join("\n")
-              }
-            }
+            const fallbackRecord = store.getMessage(messageID)
+            restoredText = extractUserTextFromRecord(fallbackRecord)
           }
 
           if (restoredText) {
