@@ -22,7 +22,7 @@ function createInitialState(instanceId: string): InstanceMessageState {
     sessions: {},
     sessionOrder: [],
     messages: {},
-    messageInfo: {},
+    messageInfoVersion: {},
     pendingParts: {},
     permissions: {
       queue: [],
@@ -164,6 +164,7 @@ export interface InstanceMessageStore {
 
 export function createInstanceMessageStore(instanceId: string): InstanceMessageStore {
   const [state, setState] = createStore<InstanceMessageState>(createInitialState(instanceId))
+  const messageInfoCache = new Map<string, MessageInfo>()
 
   function withUsageState(sessionId: string, updater: (draft: SessionUsageState) => void) {
     setState("usage", sessionId, (current) => {
@@ -370,10 +371,13 @@ export function createInstanceMessageStore(instanceId: string): InstanceMessageS
       })
     })
 
-    const infoEntry = state.messageInfo[options.oldId]
+    const infoEntry = messageInfoCache.get(options.oldId)
     if (infoEntry) {
-      setState("messageInfo", options.newId, infoEntry)
-      setState("messageInfo", (prev) => {
+      messageInfoCache.set(options.newId, infoEntry)
+      messageInfoCache.delete(options.oldId)
+      const version = state.messageInfoVersion[options.oldId] ?? 0
+      setState("messageInfoVersion", options.newId, version)
+      setState("messageInfoVersion", (prev) => {
         const next = { ...prev }
         delete next[options.oldId]
         return next
@@ -405,12 +409,15 @@ export function createInstanceMessageStore(instanceId: string): InstanceMessageS
 
   function setMessageInfo(messageId: string, info: MessageInfo) {
     if (!messageId) return
-    setState("messageInfo", messageId, info)
+    messageInfoCache.set(messageId, info)
+    const nextVersion = (state.messageInfoVersion[messageId] ?? 0) + 1
+    setState("messageInfoVersion", messageId, nextVersion)
     updateUsageWithInfo(info)
   }
 
   function getMessageInfo(messageId: string) {
-    return state.messageInfo[messageId]
+    void state.messageInfoVersion[messageId]
+    return messageInfoCache.get(messageId)
   }
 
   function upsertPermission(entry: PermissionEntry) {
@@ -492,6 +499,7 @@ export function createInstanceMessageStore(instanceId: string): InstanceMessageS
   }
 
   function clearInstance() {
+    messageInfoCache.clear()
     setState(reconcile(createInitialState(instanceId)))
   }
 

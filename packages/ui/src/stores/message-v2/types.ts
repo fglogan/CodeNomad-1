@@ -93,8 +93,10 @@ export interface InstanceMessageState {
   sessions: Record<string, SessionRecord>
   sessionOrder: string[]
   messages: Record<string, MessageRecord>
-  messageInfo: Record<string, MessageInfo>
+  messageInfoVersion: Record<string, number>
   pendingParts: Record<string, PendingPartEntry[]>
+
+
   permissions: InstancePermissionState
   usage: Record<string, SessionUsageState>
   scrollState: Record<string, ScrollSnapshot>
