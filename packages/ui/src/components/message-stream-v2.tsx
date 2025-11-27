@@ -1006,9 +1006,10 @@ function ReasoningCard(props: ReasoningCardProps) {
 
       <Show when={expanded()}>
         <div class="message-reasoning-expanded">
-          <div class="message-reasoning-divider" aria-hidden="true" />
           <div class="message-reasoning-body">
-            <pre class="message-reasoning-text">{reasoningText() || ""}</pre>
+            <div class="message-reasoning-output" role="region" aria-label="Reasoning details">
+              <pre class="message-reasoning-text">{reasoningText() || ""}</pre>
+            </div>
           </div>
         </div>
       </Show>

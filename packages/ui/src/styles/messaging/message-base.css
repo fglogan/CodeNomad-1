@@ -11,20 +11,20 @@
 }
 
 .message-item-base:not(.assistant-message) {
-  margin-top: 0.25rem;
-  margin-bottom: 0.25rem;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .message-step-start {
   background-color: var(--message-assistant-bg);
   border-left: 4px solid var(--message-assistant-border);
-  margin-top: 0.125rem;
+  margin-top: 0;
 }
 
 .message-step-finish {
   background-color: var(--message-assistant-bg);
   border-left: 4px solid var(--message-assistant-border);
-  margin-bottom: 0.125rem;
+  margin: 0;
 }
 
 .message-step-finish-flush {
@@ -276,21 +276,29 @@
   gap: 0.35rem;
 }
 
-.message-reasoning-divider {
-  width: 100%;
-  height: 1px;
-  background-color: var(--border-base);
+.message-reasoning-body {
+  padding: 0;
+  background-color: var(--surface-code);
+  margin: 0.75rem;
 }
 
-.message-reasoning-body {
-  padding: 0.25rem 0.6rem 0.4rem;
+.message-reasoning-output {
+  @apply flex flex-col;
+  margin: 0;
+  padding: 0.75rem;
+  max-height: 30rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-base) transparent;
+  scrollbar-gutter: stable both-edges;
+  background-color: var(--surface-code);
 }
 
 .message-reasoning-text {
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   line-height: var(--line-height-tight);
-  color: var(--text-muted);
+  color: var(--text-primary);
   white-space: pre-wrap;
   margin: 0;
 }
