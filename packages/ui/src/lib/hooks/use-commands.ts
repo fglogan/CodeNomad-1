@@ -152,7 +152,7 @@ export function useCommands(options: UseCommandsOptions) {
       action: async () => {
         const instance = activeInstance()
         if (!instance) return
-        await cleanupBlankSessions(instance.id, undefined, true)
+        cleanupBlankSessions(instance.id, undefined, true)
       },
     })
 

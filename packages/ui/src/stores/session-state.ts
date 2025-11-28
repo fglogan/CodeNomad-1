@@ -1,8 +1,9 @@
 import { createSignal } from "solid-js"
 
 import type { Session, Agent, Provider } from "../types/session"
-import { loadMessages, deleteSession } from "./session-api"
+import { deleteSession, loadMessages } from "./session-api"
 import { showToastNotification } from "../lib/notifications"
+import { messageStoreBus } from "./message-v2/bus"
 
 export interface SessionInfo {
   cost: number
@@ -224,53 +225,53 @@ function getSessionInfo(instanceId: string, sessionId: string): SessionInfo | un
 }
 
 async function isBlankSession(session: Session, instanceId: string, fetchIfNeeded = false): Promise<boolean> {
-  if (session.parentId === null) {
-    // Parent session is only blank if actually blank AND has no children
+  const loadedSet = messagesLoaded().get(instanceId)
+  const notLoaded = !loadedSet?.has(session.id)
 
-    const sessionInfo = getSessionInfo(instanceId, session.id)
-    const hasChildren = getChildSessions(instanceId, session.id).length > 0
-    
-    // Only consider blank if we have loaded info, it shows 0 tokens, and no children
-    return sessionInfo !== undefined && sessionInfo.tokens === 0 && !hasChildren
-  } else if (session.title?.includes("subagent")) {
-    // Subagent
-
-    const loadedSet = messagesLoaded().get(instanceId) || new Set()
-    if (!loadedSet.has(session.id)) {
-      if (!fetchIfNeeded) return false
-      await loadMessages(instanceId, session.id)
-    }
-
-    if (session.messages.length === 0) return true
-
-    const hasStreamingMessage = session.messages.some((msg) => msg.status === "streaming")
-    const isWaitingForPermission = session.pendingPermission === true
-
-    // If streaming or waiting for permission, not blank
-    if (hasStreamingMessage || isWaitingForPermission) return false
-
-    // Check if last message was a tool call
-    const lastMessage = session.messages[session.messages.length - 1]
-    const lastMessageWasToolCall = lastMessage.parts.some((part) => part.type === "tool")
-
-    // Subagent is blank if last message was NOT a tool call
-    return !lastMessageWasToolCall
-  } else if (!session.title?.includes("subagent") && session.parentId !== null) {
-    // Fork
-
-    const loadedSet = messagesLoaded().get(instanceId) || new Set()
-    if (!loadedSet.has(session.id)) {
-      if (!fetchIfNeeded) return false
-      await loadMessages(instanceId, session.id)
-    }
-
-    if (session.messages.length === 0) return true
-
-    const lastMessage = session.messages[session.messages.length - 1]
-    return lastMessage.id === session.revert.messageID
+  if (notLoaded && !fetchIfNeeded) {
+    return false
   }
 
-  return false // default to not saying it's blank, just to be safe
+  if (notLoaded && fetchIfNeeded) {
+    await loadMessages(instanceId, session.id)
+  }
+
+  const store = messageStoreBus.getOrCreate(instanceId)
+  const messageIds = store.getSessionMessageIds(session.id)
+  const usage = store.getSessionUsage(session.id)
+
+  if (session.parentId === null) {
+    // Parent session: check tokens and children
+    const hasChildren = getChildSessions(instanceId, session.id).length > 0
+    const hasZeroTokens = usage ? usage.actualUsageTokens === 0 : true
+
+    return hasZeroTokens && !hasChildren
+  } else if (session.title?.includes("subagent")) {
+    // Subagent session
+    if (messageIds.length === 0) return true
+
+    // Check for streaming or tool parts in last message
+    const lastMessageId = messageIds[messageIds.length - 1]
+    const lastMessage = store.getMessage(lastMessageId)
+    if (!lastMessage) return false
+
+    const hasToolPart = Object.values(lastMessage.parts).some((part) => part.data.type === "tool")
+    const hasStreaming = messageIds.some((id) => {
+      const msg = store.getMessage(id)
+      return msg?.status === "streaming"
+    })
+    const isWaitingForPermission = session.pendingPermission === true
+
+    return !hasStreaming && !isWaitingForPermission && !hasToolPart
+  } else {
+    // Fork session
+    if (messageIds.length === 0) return true
+
+    const lastMessageId = messageIds[messageIds.length - 1]
+    const revert = store.getSessionRevert(session.id)
+
+    return lastMessageId === revert?.messageID
+  }
 }
 
 async function cleanupBlankSessions(instanceId: string, excludeSessionId?: string, fetchIfNeeded = false): Promise<void> {
@@ -296,7 +297,7 @@ async function cleanupBlankSessions(instanceId: string, excludeSessionId?: strin
 
     if (deletedCount > 0) {
       showToastNotification({
-        message: `Cleaned up ${deletedCount} blank session${deletedCount === 1 ? '' : 's'}`,
+        message: `Cleaned up ${deletedCount} blank session${deletedCount === 1 ? "" : "s"}`,
         variant: "info"
       })
     }

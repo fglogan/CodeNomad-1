@@ -22,6 +22,7 @@ import {
   sessions,
   loading,
   setLoading,
+  cleanupBlankSessions,
 } from "./session-state"
 import { DEFAULT_MODEL_OUTPUT_LIMIT, getDefaultModel, isModelValid } from "./session-models"
 import { normalizeMessagePart } from "./message-v2/normalizers"
@@ -229,8 +230,6 @@ async function createSession(instanceId: string, agent?: string): Promise<Sessio
       next.set(instanceId, instanceInfo)
       return next
     })
-
-    getSessionIndex(instanceId, session.id)
 
     await cleanupBlankSessions(instanceId, session.id)
 
