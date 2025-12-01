@@ -484,6 +484,11 @@ export default function ToolCall(props: ToolCallProps) {
     onCleanup(() => document.removeEventListener("keydown", handler))
   })
 
+  createEffect(() => {
+    if (!expanded()) {
+      scrollContainerRef = undefined
+    }
+  })
 
   const statusIcon = () => {
     const status = props.toolCall?.state?.status || ""
@@ -1203,14 +1208,14 @@ export default function ToolCall(props: ToolCallProps) {
         </span>
       </button>
 
-      <Show when={expanded()}>
+      {expanded() && (
         <div class="tool-call-details">
           {renderToolBody()}
-
+ 
           {renderError()}
-
+ 
           {renderPermissionBlock()}
-
+ 
           <Show when={status() === "pending" && !pendingPermission()}>
             <div class="tool-call-pending-message">
               <span class="spinner-small"></span>
@@ -1218,9 +1223,10 @@ export default function ToolCall(props: ToolCallProps) {
             </div>
           </Show>
         </div>
-      </Show>
-
+      )}
+ 
       <Show when={diagnosticsEntries().length}>
+
         {renderDiagnosticsSection(
           diagnosticsEntries(),
           diagnosticsExpanded(),
