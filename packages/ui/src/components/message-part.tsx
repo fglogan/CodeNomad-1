@@ -13,8 +13,10 @@ interface MessagePartProps {
   messageType?: "user" | "assistant"
   instanceId: string
   sessionId: string
-}
-export default function MessagePart(props: MessagePartProps) {
+  onRendered?: () => void
+ }
+ export default function MessagePart(props: MessagePartProps) {
+
   const { isDark } = useTheme()
   const { preferences } = useConfig()
   const partType = () => props.part?.type || ""
@@ -95,11 +97,17 @@ export default function MessagePart(props: MessagePartProps) {
         <Show when={!(props.part.type === "text" && props.part.synthetic) && partHasRenderableText(props.part)}>
           <div class={textContainerClass()}>
             <Show
-              when={isAssistantMessage()}
-              fallback={<span>{plainTextContent()}</span>}
-            >
-              <Markdown part={createTextPartForMarkdown()} isDark={isDark()} size={isAssistantMessage() ? "tight" : "base"} />
-            </Show>
+               when={isAssistantMessage()}
+               fallback={<span>{plainTextContent()}</span>}
+             >
+              <Markdown
+                part={createTextPartForMarkdown()}
+                isDark={isDark()}
+                size={isAssistantMessage() ? "tight" : "base"}
+                onRendered={props.onRendered}
+              />
+             </Show>
+
           </div>
         </Show>
       </Match>

@@ -618,6 +618,13 @@ function mutateToolPartPermission(
       draft.updatedAt = Date.now()
     }),
   )
+
+  // Permission attachment/removal can change the rendered height of the
+  // message list (e.g., permission blocks or diffs), so bump the
+  // session revision to ensure auto-scroll reacts.
+  if (messageRecord.sessionId) {
+    store.setState("sessionRevisions", messageRecord.sessionId, (value: number = 0) => value + 1)
+  }
 }
 
 function attachPermissionToToolPart(instanceId: string, permission: Permission, active: boolean): void {

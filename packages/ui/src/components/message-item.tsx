@@ -15,9 +15,11 @@ interface MessageItemProps {
   onRevert?: (messageId: string) => void
   onFork?: (messageId?: string) => void
   showAgentMeta?: boolean
-}
+  onContentRendered?: () => void
+ }
+ 
+ export default function MessageItem(props: MessageItemProps) {
 
-export default function MessageItem(props: MessageItemProps) {
   const isUser = () => props.record.role === "user"
   const timestamp = () => {
     const createdTime = props.messageInfo?.time?.created ?? props.record.createdAt
@@ -234,6 +236,7 @@ export default function MessageItem(props: MessageItemProps) {
               messageType={props.record.role}
               instanceId={props.instanceId}
               sessionId={props.sessionId}
+              onRendered={props.onContentRendered}
             />
           )}
         </For>

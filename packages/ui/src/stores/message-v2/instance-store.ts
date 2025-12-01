@@ -439,10 +439,10 @@ export function createInstanceMessageStore(instanceId: string): InstanceMessageS
       bufferPendingPart({ messageId: input.messageId, part: input.part, receivedAt: Date.now() })
       return
     }
-
+ 
     const partId = ensurePartId(input.messageId, input.part, message.partIds.length)
     const cloned = clonePart(input.part)
-
+ 
     setState(
       "messages",
       input.messageId,
@@ -463,7 +463,12 @@ export function createInstanceMessageStore(instanceId: string): InstanceMessageS
         }
       }),
     )
+ 
+    // Any part update can change the rendered height of the message
+    // list, so we treat it as a session revision for scroll purposes.
+    bumpSessionRevision(message.sessionId)
   }
+
 
   function flushPendingParts(messageId: string) {
     const pending = state.pendingParts[messageId]

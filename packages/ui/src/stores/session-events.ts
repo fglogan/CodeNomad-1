@@ -81,19 +81,24 @@ function handleMessageUpdate(instanceId: string, event: MessageUpdateEvent | Mes
   if (event.type === "message.part.updated") {
     const rawPart = event.properties?.part
     if (!rawPart) return
-
+ 
     const part = normalizeMessagePart(rawPart)
-    const sessionId = typeof part.sessionID === "string" ? part.sessionID : undefined
-    const messageId = typeof part.messageID === "string" ? part.messageID : undefined
+    const messageInfo = (event as any)?.properties?.message as MessageInfo | undefined
+ 
+    const fallbackSessionId = typeof messageInfo?.sessionID === "string" ? messageInfo.sessionID : undefined
+    const fallbackMessageId = typeof messageInfo?.id === "string" ? messageInfo.id : undefined
+ 
+    const sessionId = typeof part.sessionID === "string" ? part.sessionID : fallbackSessionId
+    const messageId = typeof part.messageID === "string" ? part.messageID : fallbackMessageId
     if (!sessionId || !messageId) return
-
+ 
     const session = instanceSessions.get(sessionId)
     if (!session) return
-
+ 
     const store = messageStoreBus.getOrCreate(instanceId)
-    const messageInfo = (event as any)?.properties?.message as MessageInfo | undefined
     const role: MessageRole = resolveMessageRole(messageInfo)
     const createdAt = typeof messageInfo?.time?.created === "number" ? messageInfo.time.created : Date.now()
+
 
     let record = store.getMessage(messageId)
     if (!record) {
@@ -119,8 +124,9 @@ function handleMessageUpdate(instanceId: string, event: MessageUpdateEvent | Mes
     if (messageInfo) {
       upsertMessageInfoV2(instanceId, messageInfo, { status: "streaming" })
     }
+ 
+    applyPartUpdateV2(instanceId, { ...part, sessionID: sessionId, messageID: messageId })
 
-    applyPartUpdateV2(instanceId, part)
 
     updateSessionInfo(instanceId, sessionId)
     refreshPermissionsForSession(instanceId, sessionId)

@@ -17,7 +17,6 @@ import { useScrollCache } from "../lib/hooks/use-scroll-cache"
 import { setActiveInstanceId } from "../stores/instances"
 
 const SCROLL_SCOPE = "session"
-const SCROLL_DIRECTION_THRESHOLD = 10
 const USER_SCROLL_INTENT_WINDOW_MS = 600
 const SCROLL_INTENT_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Spacebar"])
 
@@ -174,6 +173,7 @@ interface MessageStreamV2Props {
   loading?: boolean
   onRevert?: (messageId: string) => void
   onFork?: (messageId?: string) => void
+  registerScrollToBottom?: (fn: () => void) => void
 }
 
 interface ContentDisplayItem {
@@ -284,15 +284,10 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
   })
 
   const changeToken = createMemo(() => {
-    const revisionValue = sessionRevision()
-    const ids = messageIds()
-    if (ids.length === 0) {
-      return `${revisionValue}:empty`
-    }
-    const lastId = ids[ids.length - 1]
-    const lastRecord = store().getMessage(lastId)
-    const tailSignature = lastRecord ? `msg:${lastRecord.id}:${lastRecord.revision}` : `msg:${lastId}:missing`
-    return `${revisionValue}:${tailSignature}`
+    // Any change that can affect layout (new message, part update, revert,
+    // etc.) should bump the session revision. We use this as the primary
+    // signal for auto-scroll decisions.
+    return String(sessionRevision())
   })
 
   const scrollCache = useScrollCache({
@@ -312,6 +307,10 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
   let detachScrollIntentListeners: (() => void) | undefined
   let hasRestoredScroll = false
   let hasInitialScroll = false
+  // When the user explicitly clicks "scroll to bottom", we want the
+  // smooth scroll animation to complete without being immediately
+  // overridden by the auto-scroll effects that react to new messages.
+  let suppressAutoScrollOnce = false
 
   function markUserScrollIntent() {
     const now = typeof performance !== "undefined" ? performance.now() : Date.now()
@@ -372,15 +371,18 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
   function scrollToBottom(immediate = false) {
     if (!containerRef) return
     const behavior = immediate ? "auto" : "smooth"
-    requestAnimationFrame(() => {
-      if (!containerRef) return
-      containerRef.scrollTo({ top: containerRef.scrollHeight, behavior })
-      setAutoScroll(true)
-      lastMeasuredScrollHeight = containerRef.scrollHeight
-      lastKnownScrollTop = containerRef.scrollTop
-      updateScrollIndicators(containerRef)
-      scheduleScrollPersist()
-    })
+    if (!immediate) {
+      // We initiated this scroll (e.g., via the button). Skip the
+      // next auto-scroll reaction so the smooth animation isn't
+      // overridden by changeToken/preference effects.
+      suppressAutoScrollOnce = true
+    }
+    containerRef.scrollTo({ top: containerRef.scrollHeight, behavior })
+    setAutoScroll(true)
+    lastMeasuredScrollHeight = containerRef.scrollHeight
+    lastKnownScrollTop = containerRef.scrollTop
+    updateScrollIndicators(containerRef)
+    scheduleScrollPersist()
   }
  
   function scrollToBottomAndClamp(immediate = false) {
@@ -396,17 +398,28 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
     if (!containerRef) return
     const behavior = immediate ? "auto" : "smooth"
     setAutoScroll(false)
-    requestAnimationFrame(() => {
-      if (!containerRef) return
-      containerRef.scrollTo({ top: 0, behavior })
-      lastMeasuredScrollHeight = containerRef.scrollHeight
-      lastKnownScrollTop = containerRef.scrollTop
-      updateScrollIndicators(containerRef)
-      scheduleScrollPersist()
-    })
+    containerRef.scrollTo({ top: 0, behavior })
+    lastMeasuredScrollHeight = containerRef.scrollHeight
+    lastKnownScrollTop = containerRef.scrollTop
+    updateScrollIndicators(containerRef)
+    scheduleScrollPersist()
   }
+
+  function handleContentRendered() {
+    if (!containerRef) return
+    if (!autoScroll()) return
+    scrollToBottomAndClamp(true)
+  }
+
+  createEffect(() => {
+    if (props.registerScrollToBottom) {
+      props.registerScrollToBottom(() => scrollToBottomAndClamp(true))
+    }
+  })
  
-  let pendingScrollPersist: number | null = null
+   let pendingScrollPersist: number | null = null
+
+
   function scheduleScrollPersist() {
     if (pendingScrollPersist !== null) return
     pendingScrollPersist = requestAnimationFrame(() => {
@@ -439,20 +452,22 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
     pendingScrollFrame = requestAnimationFrame(() => {
       pendingScrollFrame = null
       if (!containerRef) return
-      const previousTop = lastKnownScrollTop
       const currentTop = containerRef.scrollTop
-      const movingUp = currentTop < previousTop - SCROLL_DIRECTION_THRESHOLD
-      const movingDown = currentTop > previousTop + SCROLL_DIRECTION_THRESHOLD
       lastKnownScrollTop = currentTop
       lastMeasuredScrollHeight = containerRef.scrollHeight
       const atBottom = isNearBottom(containerRef)
+
       if (isUserScroll) {
-        if (movingUp && !atBottom && autoScroll()) {
-          setAutoScroll(false)
-        } else if (movingDown && atBottom && !autoScroll()) {
-          setAutoScroll(true)
+        // If the user scrolls and ends near the bottom, enable auto-scroll.
+        // If they scroll away from the bottom by more than our threshold,
+        // disable auto-scroll until they explicitly return.
+        if (atBottom) {
+          if (!autoScroll()) setAutoScroll(true)
+        } else {
+          if (autoScroll()) setAutoScroll(false)
         }
       }
+
       updateScrollIndicators(containerRef)
       scheduleScrollPersist()
     })
@@ -465,7 +480,7 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
     if (!target) return
     if (loading) return
     if (hasRestoredScroll) return
-
+ 
     scrollCache.restore(target, {
       onApplied: (snapshot) => {
         if (snapshot) {
@@ -478,12 +493,12 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
         updateScrollIndicators(target)
       },
     })
-
+ 
     hasRestoredScroll = true
   })
  
   let previousToken: string | undefined
- 
+
   createEffect(() => {
     const token = changeToken()
     const loading = props.loading
@@ -493,19 +508,28 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
       return
     }
     previousToken = token
+    if (suppressAutoScrollOnce) {
+      suppressAutoScrollOnce = false
+      return
+    }
     if (autoScroll()) {
       scrollToBottomAndClamp(true)
     }
   })
- 
+
   createEffect(() => {
     preferenceSignature()
     if (props.loading) return
     if (!autoScroll()) {
       return
     }
+    if (suppressAutoScrollOnce) {
+      suppressAutoScrollOnce = false
+      return
+    }
     scrollToBottomAndClamp(true)
   })
+
  
   createEffect(() => {
     if (messageIds().length === 0) {
@@ -621,18 +645,21 @@ export default function MessageStreamV2(props: MessageStreamV2Props) {
         <Index each={messageIds()}>
           {(messageId) => (
             <MessageBlock
-              messageId={messageId()}
-              instanceId={props.instanceId}
-              sessionId={props.sessionId}
-              store={store}
-              messageIndexMap={messageIndexMap}
-              lastAssistantIndex={lastAssistantIndex}
-              showThinking={() => preferences().showThinkingBlocks}
-              thinkingDefaultExpanded={() => (preferences().thinkingBlocksExpansion ?? "expanded") === "expanded"}
-              showUsageMetrics={showUsagePreference}
-              onRevert={props.onRevert}
-              onFork={props.onFork}
-            />
+               messageId={messageId()}
+               instanceId={props.instanceId}
+               sessionId={props.sessionId}
+               store={store}
+               messageIndexMap={messageIndexMap}
+               lastAssistantIndex={lastAssistantIndex}
+               showThinking={() => preferences().showThinkingBlocks}
+               thinkingDefaultExpanded={() => (preferences().thinkingBlocksExpansion ?? "expanded") === "expanded"}
+               showUsageMetrics={showUsagePreference}
+               onRevert={props.onRevert}
+               onFork={props.onFork}
+               onContentRendered={handleContentRendered}
+             />
+
+
           )}
         </Index>
       </div>
@@ -681,7 +708,9 @@ interface MessageBlockProps {
   showUsageMetrics: () => boolean
   onRevert?: (messageId: string) => void
   onFork?: (messageId?: string) => void
+  onContentRendered?: () => void
 }
+
 
 function MessageBlock(props: MessageBlockProps) {
   const record = createMemo(() => props.store().getMessage(props.messageId))
@@ -882,7 +911,9 @@ function MessageBlock(props: MessageBlockProps) {
                     showAgentMeta={(item as ContentDisplayItem).showAgentMeta}
                     onRevert={props.onRevert}
                     onFork={props.onFork}
+                    onContentRendered={props.onContentRendered}
                   />
+
                 </Match>
                 <Match when={item.type === "tool"}>
                   {(() => {

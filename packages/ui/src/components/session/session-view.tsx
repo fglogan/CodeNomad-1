@@ -25,8 +25,10 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   const session = () => props.activeSessions.get(props.sessionId)
   const messagesLoading = createMemo(() => isSessionMessagesLoading(props.instanceId, props.sessionId))
   const messageStore = createMemo(() => messageStoreBus.getOrCreate(props.instanceId))
+  let scrollToBottomHandle: (() => void) | undefined
+ 
+   createEffect(() => {
 
-  createEffect(() => {
     const currentSession = session()
     if (currentSession) {
       loadMessages(props.instanceId, currentSession.id).catch(console.error)
@@ -34,6 +36,9 @@ export const SessionView: Component<SessionViewProps> = (props) => {
   })
 
   async function handleSendMessage(prompt: string, attachments: Attachment[]) {
+    if (scrollToBottomHandle) {
+      scrollToBottomHandle()
+    }
     await sendMessage(props.instanceId, props.sessionId, prompt, attachments)
   }
 
@@ -137,12 +142,16 @@ export const SessionView: Component<SessionViewProps> = (props) => {
         return (
           <div class="session-view">
             <MessageStreamV2
-              instanceId={props.instanceId}
-              sessionId={activeSession.id}
-              loading={messagesLoading()}
-              onRevert={handleRevert}
-              onFork={handleFork}
-            />
+               instanceId={props.instanceId}
+               sessionId={activeSession.id}
+               loading={messagesLoading()}
+               onRevert={handleRevert}
+               onFork={handleFork}
+               registerScrollToBottom={(fn) => {
+                 scrollToBottomHandle = fn
+               }}
+             />
+
 
             <PromptInput
               instanceId={props.instanceId}
