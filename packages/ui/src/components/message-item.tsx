@@ -196,28 +196,33 @@ interface MessageItemProps {
           <Show when={agentMeta()}>{(meta) => <span class="message-agent-meta">{meta()}</span>}</Show>
         </div>
         <div class="message-item-actions">
-          <Show when={isUser() && props.onRevert}>
-            <button
-              class="bg-transparent border border-[var(--border-base)] text-[var(--text-muted)] cursor-pointer px-3 py-0.5 rounded text-xs font-semibold leading-none transition-all duration-200 flex items-center justify-center h-6 hover:bg-[var(--surface-hover)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] active:scale-95"
-              onClick={handleRevert}
-              title="Revert to this message"
-              aria-label="Revert to this message"
-            >
-              Revert to
-            </button>
-          </Show>
-          <Show when={isUser() && props.onFork}>
-            <button
-              class="bg-transparent border border-[var(--border-base)] text-[var(--text-muted)] cursor-pointer px-3 py-0.5 rounded text-xs font-semibold leading-none transition-all duration-200 flex items-center justify-center h-6 hover:bg-[var(--surface-hover)] hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] active:scale-95"
-              onClick={() => props.onFork?.(props.record.id)}
-              title="Fork from this message"
-              aria-label="Fork from this message"
-            >
-              Fork
-            </button>
+          <Show when={isUser()}>
+            <div class="message-action-group">
+              <Show when={props.onRevert}>
+                <button
+                  class="message-action-button"
+                  onClick={handleRevert}
+                  title="Revert to this message"
+                  aria-label="Revert to this message"
+                >
+                  Revert
+                </button>
+              </Show>
+              <Show when={props.onFork}>
+                <button
+                  class="message-action-button"
+                  onClick={() => props.onFork?.(props.record.id)}
+                  title="Fork from this message"
+                  aria-label="Fork from this message"
+                >
+                  Fork
+                </button>
+              </Show>
+            </div>
           </Show>
           <time class="message-timestamp" dateTime={timestampIso()}>{timestamp()}</time>
         </div>
+
       </header>
 
       <div class="pt-1 whitespace-pre-wrap break-words leading-[1.1]">

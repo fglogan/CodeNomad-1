@@ -31,6 +31,24 @@
   @apply flex items-center gap-2;
 }
 
+.message-action-group {
+  @apply flex items-center gap-2;
+}
+
+.message-action-button {
+  @apply bg-transparent border border-[var(--border-base)] text-[var(--text-muted)] cursor-pointer px-3 py-0.5 rounded text-xs font-semibold leading-none transition-all duration-200 flex items-center justify-center h-6;
+}
+
+.message-action-button:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.message-action-button:active {
+  transform: scale(0.95);
+}
+
 .message-timestamp {
   @apply text-[11px] text-[var(--text-muted)];
 }
