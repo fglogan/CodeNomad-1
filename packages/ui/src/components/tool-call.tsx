@@ -6,7 +6,6 @@ import { useTheme } from "../lib/theme"
 import { getLanguageFromPath } from "../lib/markdown"
 import { isRenderableDiffText } from "../lib/diff-utils"
 import { useGlobalCache } from "../lib/hooks/use-global-cache"
-import { useScrollCache } from "../lib/hooks/use-scroll-cache"
 import { useConfig } from "../stores/preferences"
 import type { DiffViewMode } from "../stores/preferences"
 import { sendPermissionResponse } from "../stores/instances"
@@ -401,49 +400,14 @@ export default function ToolCall(props: ToolCallProps) {
   let scrollContainerRef: HTMLDivElement | undefined
   let toolCallRootRef: HTMLDivElement | undefined
 
-  const scrollScopeId = createMemo(() => {
-    const id = toolCallId()
-    if (id) return id
-    const messageKey = props.messageId || "unknown"
-    const partKey = typeof props.partVersion === "number" ? props.partVersion : 0
-    return `${messageKey}:${partKey}`
-  })
-
-  const scrollCache = useScrollCache({
-    instanceId: () => props.instanceId,
-    sessionId: () => props.sessionId,
-    scope: () => `${TOOL_CALL_CACHE_SCOPE}:scroll:${scrollScopeId()}`,
-  })
-
-  const persistScrollSnapshot = (element?: HTMLElement | null) => {
-    if (!element) return
-    scrollCache.persist(element, { atBottomOffset: 2 })
-  }
-
-  const restoreScrollSnapshot = (element?: HTMLElement | null) => {
-    if (!element) return
-    scrollCache.restore(element, {
-      fallback: () => {
-        requestAnimationFrame(() => {
-          if (!element || !element.isConnected) return
-          element.scrollTop = element.scrollHeight
-          persistScrollSnapshot(element)
-        })
-      },
-    })
-  }
-
-  const handleScrollRendered = () => {
-    if (!scrollContainerRef) return
-    restoreScrollSnapshot(scrollContainerRef)
-  }
-
+  const persistScrollSnapshot = (_element?: HTMLElement | null) => {}
+ 
+  const handleScrollRendered = () => {}
+ 
   const initializeScrollContainer = (element: HTMLDivElement | null | undefined) => {
-    const resolvedElement = element || undefined
-    scrollContainerRef = resolvedElement
-    if (!resolvedElement) return
-    restoreScrollSnapshot(resolvedElement)
+    scrollContainerRef = element || undefined
   }
+
 
 
   createEffect(() => {
