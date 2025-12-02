@@ -16,6 +16,7 @@ const InstanceWelcomeView: Component<InstanceWelcomeViewProps> = (props) => {
   const [isCreating, setIsCreating] = createSignal(false)
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   const [focusMode, setFocusMode] = createSignal<"sessions" | "new-session" | null>("sessions")
+  const [showInstanceInfoOverlay, setShowInstanceInfoOverlay] = createSignal(false)
 
   const parentSessions = () => getParentSessions(props.instance.id)
   const newSessionShortcut = createMemo<KeyboardShortcut>(() => {
@@ -47,6 +48,9 @@ const InstanceWelcomeView: Component<InstanceWelcomeViewProps> = (props) => {
     }
   })
 
+  const openInstanceInfoOverlay = () => setShowInstanceInfoOverlay(true)
+  const closeInstanceInfoOverlay = () => setShowInstanceInfoOverlay(false)
+
   function scrollToIndex(index: number) {
     const element = document.querySelector(`[data-session-index="${index}"]`)
     if (element) {
@@ -55,6 +59,14 @@ const InstanceWelcomeView: Component<InstanceWelcomeViewProps> = (props) => {
   }
 
   function handleKeyDown(e: KeyboardEvent) {
+    if (showInstanceInfoOverlay()) {
+      if (e.key === "Escape") {
+        e.preventDefault()
+        closeInstanceInfoOverlay()
+      }
+      return
+    }
+
     const sessions = parentSessions()
 
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "n") {
@@ -124,6 +136,31 @@ const InstanceWelcomeView: Component<InstanceWelcomeViewProps> = (props) => {
     })
   })
 
+  onMount(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)")
+    const handleMediaChange = (matches: boolean) => {
+      if (matches) {
+        closeInstanceInfoOverlay()
+      }
+    }
+
+    const listener = (event: MediaQueryListEvent) => handleMediaChange(event.matches)
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", listener)
+      onCleanup(() => {
+        mediaQuery.removeEventListener("change", listener)
+      })
+    } else {
+      mediaQuery.addListener(listener)
+      onCleanup(() => {
+        mediaQuery.removeListener(listener)
+      })
+    }
+
+    handleMediaChange(mediaQuery.matches)
+  })
+
   function formatRelativeTime(timestamp: number): string {
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
     const minutes = Math.floor(seconds / 60)
@@ -178,15 +215,29 @@ const InstanceWelcomeView: Component<InstanceWelcomeViewProps> = (props) => {
                 </div>
                 <p class="panel-empty-state-title">No Previous Sessions</p>
                 <p class="panel-empty-state-description">Create a new session below to get started</p>
+                <button type="button" class="button-tertiary mt-4 lg:hidden" onClick={openInstanceInfoOverlay}>
+                  View Instance Info
+                </button>
               </div>
             }
           >
             <div class="panel flex flex-col flex-1 min-h-0">
               <div class="panel-header">
-                <h2 class="panel-title">Resume Session</h2>
-                <p class="panel-subtitle">
-                  {parentSessions().length} {parentSessions().length === 1 ? "session" : "sessions"} available
-                </p>
+                <div class="flex flex-row flex-wrap items-center gap-2 justify-between">
+                  <div>
+                    <h2 class="panel-title">Resume Session</h2>
+                    <p class="panel-subtitle">
+                      {parentSessions().length} {parentSessions().length === 1 ? "session" : "sessions"} available
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="button-tertiary lg:hidden flex-shrink-0"
+                    onClick={openInstanceInfoOverlay}
+                  >
+                    View Instance Info
+                  </button>
+                </div>
               </div>
               <div class="panel-list panel-list--fill flex-1 min-h-0 overflow-auto">
                 <For each={parentSessions()}>
@@ -274,12 +325,33 @@ const InstanceWelcomeView: Component<InstanceWelcomeViewProps> = (props) => {
           </div>
         </div>
 
-        <div class="lg:w-80 flex-shrink-0">
+        <div class="hidden lg:block lg:w-80 flex-shrink-0">
           <div class="sticky top-0">
             <InstanceInfo instance={props.instance} />
           </div>
         </div>
       </div>
+
+      <Show when={showInstanceInfoOverlay()}>
+        <div
+          class="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={closeInstanceInfoOverlay}
+        >
+          <div
+            class="w-full max-w-md space-y-3"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div class="flex justify-end">
+              <button type="button" class="button-tertiary" onClick={closeInstanceInfoOverlay}>
+                Close
+              </button>
+            </div>
+            <div class="max-h-[80vh] overflow-y-auto pr-1">
+              <InstanceInfo instance={props.instance} />
+            </div>
+          </div>
+        </div>
+      </Show>
 
       <div class="panel-footer hidden sm:block">
         <div class="panel-footer-hints">
