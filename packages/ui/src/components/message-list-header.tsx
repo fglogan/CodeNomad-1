@@ -1,12 +1,18 @@
 import { Show } from "solid-js"
 import Kbd from "./kbd"
 
+const METRIC_CHIP_CLASS = "inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary"
+const METRIC_LABEL_CLASS = "uppercase text-[10px] tracking-wide text-primary/70"
+
 interface MessageListHeaderProps {
   usedTokens: number
+
   availableTokens?: number | null
   connectionStatus: "connected" | "connecting" | "error" | "disconnected" | "unknown" | null
   onCommandPalette: () => void
   formatTokens: (value: number) => string
+  showSidebarToggle?: boolean
+  onSidebarToggle?: () => void
 }
 
 export default function MessageListHeader(props: MessageListHeaderProps) {
@@ -15,14 +21,26 @@ export default function MessageListHeader(props: MessageListHeaderProps) {
 
   return (
     <div class="connection-status">
-      <div class="connection-status-text connection-status-info flex flex-wrap items-center gap-2 text-sm font-medium">
-        <div class="inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary">
-          <span class="uppercase text-[10px] tracking-wide text-primary/70">Used</span>
-          <span class="font-semibold text-primary">{props.formatTokens(props.usedTokens)}</span>
-        </div>
-        <div class="inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary">
-          <span class="uppercase text-[10px] tracking-wide text-primary/70">Avail</span>
-          <span class="font-semibold text-primary">{hasAvailableTokens() ? availableDisplay() : "--"}</span>
+      <div class="connection-status-text connection-status-info flex flex-wrap items-center gap-3 text-sm font-medium">
+        <Show when={props.showSidebarToggle}>
+          <button
+            type="button"
+            class="session-sidebar-menu-button"
+            onClick={() => props.onSidebarToggle?.()}
+            aria-label="Open session list"
+          >
+            <span aria-hidden="true" class="session-sidebar-menu-icon">☰</span>
+          </button>
+        </Show>
+        <div class="flex flex-wrap items-center gap-2 text-xs text-primary/90">
+          <div class={METRIC_CHIP_CLASS}>
+            <span class={METRIC_LABEL_CLASS}>Used</span>
+            <span class="font-semibold text-primary">{props.formatTokens(props.usedTokens)}</span>
+          </div>
+          <div class={METRIC_CHIP_CLASS}>
+            <span class={METRIC_LABEL_CLASS}>Avail</span>
+            <span class="font-semibold text-primary">{hasAvailableTokens() ? availableDisplay() : "--"}</span>
+          </div>
         </div>
       </div>
 
@@ -41,19 +59,19 @@ export default function MessageListHeader(props: MessageListHeaderProps) {
         <Show when={props.connectionStatus === "connected"}>
           <span class="status-indicator connected">
             <span class="status-dot" />
-            Connected
+            <span class="status-text">Connected</span>
           </span>
         </Show>
         <Show when={props.connectionStatus === "connecting"}>
           <span class="status-indicator connecting">
             <span class="status-dot" />
-            Connecting...
+            <span class="status-text">Connecting...</span>
           </span>
         </Show>
         <Show when={props.connectionStatus === "error" || props.connectionStatus === "disconnected"}>
           <span class="status-indicator disconnected">
             <span class="status-dot" />
-            Disconnected
+            <span class="status-text">Disconnected</span>
           </span>
         </Show>
       </div>

@@ -17,8 +17,69 @@
   background-color: var(--surface-secondary);
 }
 
+.session-layout-compact {
+  position: relative;
+}
+
+.session-sidebar-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(90vw, 360px);
+  max-width: 360px;
+  border-right: 1px solid var(--border-base);
+  box-shadow: var(--folder-card-shadow);
+  transform: translateX(0);
+  transition: transform 0.25s ease, opacity 0.2s ease;
+  z-index: 40;
+}
+
+.session-sidebar-collapsed {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.session-sidebar-backdrop {
+  @apply absolute inset-0;
+  border: none;
+  padding: 0;
+  background-color: var(--overlay-scrim);
+  cursor: pointer;
+  z-index: 30;
+}
+
+.session-sidebar-menu-button--floating {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 20;
+}
+
 .session-sidebar-header {
   @apply flex flex-col gap-2 w-full;
+}
+
+.session-sidebar-header-row {
+  @apply flex items-center justify-between gap-2;
+}
+
+.session-sidebar-close {
+  @apply inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md border transition-colors;
+  border-color: var(--border-base);
+  background-color: var(--surface-base);
+  color: var(--text-primary);
+}
+
+.session-sidebar-close:hover {
+  background-color: var(--surface-hover);
+}
+
+.session-sidebar-close:focus-visible {
+  @apply ring-2 ring-offset-1;
+  ring-color: var(--accent-primary);
+  ring-offset-color: var(--surface-secondary);
 }
 
 .session-sidebar-title {

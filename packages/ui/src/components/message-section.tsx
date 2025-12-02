@@ -27,6 +27,8 @@ export interface MessageSectionProps {
   onRevert?: (messageId: string) => void
   onFork?: (messageId?: string) => void
   registerScrollToBottom?: (fn: () => void) => void
+  showSidebarToggle?: boolean
+  onSidebarToggle?: () => void
 }
 
 export default function MessageSection(props: MessageSectionProps) {
@@ -336,6 +338,8 @@ export default function MessageSection(props: MessageSectionProps) {
         connectionStatus={connectionStatus()}
         onCommandPalette={handleCommandPaletteClick}
         formatTokens={formatTokens}
+        showSidebarToggle={props.showSidebarToggle}
+        onSidebarToggle={props.onSidebarToggle}
       />
 
       <div class="message-stream" ref={setContainerRef} onScroll={handleScroll}>

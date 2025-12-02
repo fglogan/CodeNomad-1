@@ -9,6 +9,48 @@
   border-bottom: 1px solid var(--border-base);
 }
 
+.session-sidebar-menu-button {
+  @apply inline-flex items-center justify-center border rounded-md px-2 py-1 text-sm font-medium;
+  border-color: var(--border-base);
+  background-color: transparent;
+  color: var(--text-primary);
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.session-sidebar-menu-button:hover {
+  background-color: var(--surface-hover);
+}
+
+.session-sidebar-menu-button:focus-visible {
+  @apply ring-2 ring-offset-1;
+  ring-color: var(--accent-primary);
+  ring-offset-color: var(--surface-secondary);
+}
+
+.session-sidebar-menu-icon {
+  font-size: var(--font-size-base);
+  line-height: 1;
+}
+
+.status-indicator {
+  @apply flex items-center gap-1.5 text-xs;
+  color: var(--text-muted);
+}
+
+.status-indicator .status-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.status-indicator .status-text {
+  display: inline-block;
+}
+
+@media (max-width: 1024px) {
+  .status-indicator .status-text {
+    display: none;
+  }
+}
+
 .connection-status-info {
   justify-self: start;
 }

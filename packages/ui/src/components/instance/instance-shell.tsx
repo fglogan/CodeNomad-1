@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal, type Component } from "solid-js"
+import { Show, createMemo, createSignal, onCleanup, onMount, type Component } from "solid-js"
 import type { Accessor } from "solid-js"
 import type { Instance } from "../../types/instance"
 import type { Command } from "../../lib/commands"
@@ -30,9 +30,38 @@ interface InstanceShellProps {
 }
 
 const DEFAULT_SESSION_SIDEBAR_WIDTH = 350
+const MOBILE_SIDEBAR_BREAKPOINT = 1024
 
 const InstanceShell: Component<InstanceShellProps> = (props) => {
   const [sessionSidebarWidth, setSessionSidebarWidth] = createSignal(DEFAULT_SESSION_SIDEBAR_WIDTH)
+  const [isCompactLayout, setIsCompactLayout] = createSignal(false)
+  const [isSidebarOpen, setIsSidebarOpen] = createSignal(true)
+  const sidebarId = `session-sidebar-${props.instance.id}`
+  let previousIsCompact = false
+
+  const shouldShowSidebarToggle = () => isCompactLayout() && !isSidebarOpen()
+
+  onMount(() => {
+    if (typeof window === "undefined") return
+
+    const handleResize = () => {
+      const compact = window.innerWidth < MOBILE_SIDEBAR_BREAKPOINT
+      setIsCompactLayout(compact)
+      if (!compact) {
+        setIsSidebarOpen(true)
+      } else if (!previousIsCompact && compact) {
+        setIsSidebarOpen(false)
+      }
+      previousIsCompact = compact
+    }
+
+    handleResize()
+    window.addEventListener("resize", handleResize)
+
+    onCleanup(() => {
+      window.removeEventListener("resize", handleResize)
+    })
+  })
 
   const activeSessions = createMemo(() => {
     const parentId = activeParentSessionId().get(props.instance.id)
@@ -68,8 +97,20 @@ const InstanceShell: Component<InstanceShellProps> = (props) => {
   return (
     <>
       <Show when={activeSessions().size > 0} fallback={<InstanceWelcomeView instance={props.instance} />}>
-        <div class="flex flex-1 min-h-0">
-          <div class="session-sidebar flex flex-col bg-surface-secondary" style={{ width: `${sessionSidebarWidth()}px` }}>
+        <div
+          class="flex flex-1 min-h-0 relative"
+          classList={{ "session-layout-compact": isCompactLayout() }}
+        >
+          <div
+            id={sidebarId}
+            class="session-sidebar flex flex-col bg-surface-secondary"
+            classList={{
+              "session-sidebar-overlay": isCompactLayout(),
+              "session-sidebar-collapsed": isCompactLayout() && !isSidebarOpen(),
+            }}
+            style={!isCompactLayout() ? { width: `${sessionSidebarWidth()}px` } : undefined}
+            aria-hidden={isCompactLayout() && !isSidebarOpen()}
+          >
             <SessionList
               instanceId={props.instance.id}
               sessions={activeSessions()}
@@ -91,7 +132,19 @@ const InstanceShell: Component<InstanceShellProps> = (props) => {
               showFooter={false}
               headerContent={
                 <div class="session-sidebar-header">
-                  <span class="session-sidebar-title text-sm font-semibold uppercase text-primary">Sessions</span>
+                  <div class="session-sidebar-header-row">
+                    <span class="session-sidebar-title text-sm font-semibold uppercase text-primary">Sessions</span>
+                    <Show when={isCompactLayout()}>
+                      <button
+                        type="button"
+                        class="session-sidebar-close"
+                        onClick={() => setIsSidebarOpen(false)}
+                        aria-label="Close session sidebar"
+                      >
+                        Close
+                      </button>
+                    </Show>
+                  </div>
                   <div class="session-sidebar-shortcuts">
                     {keyboardShortcuts().length ? (
                       <KeyboardHint shortcuts={keyboardShortcuts()} separator=" " showDescription={false} />
@@ -139,6 +192,20 @@ const InstanceShell: Component<InstanceShellProps> = (props) => {
 
           <div class="content-area flex-1 min-h-0 overflow-hidden flex flex-col">
             <Show
+              when={shouldShowSidebarToggle() && (!activeSessionIdForInstance() || activeSessionIdForInstance() === "info")}
+            >
+              <button
+                type="button"
+                class="session-sidebar-menu-button session-sidebar-menu-button--floating"
+                onClick={() => setIsSidebarOpen(true)}
+                aria-controls={sidebarId}
+                aria-expanded={isSidebarOpen()}
+                aria-label="Open session list"
+              >
+                <span aria-hidden="true" class="session-sidebar-menu-icon">☰</span>
+              </button>
+            </Show>
+            <Show
               when={activeSessionIdForInstance() === "info"}
               fallback={
                 <Show
@@ -160,6 +227,8 @@ const InstanceShell: Component<InstanceShellProps> = (props) => {
                       instanceId={props.instance.id}
                       instanceFolder={props.instance.folder}
                       escapeInDebounce={props.escapeInDebounce}
+                      showSidebarToggle={shouldShowSidebarToggle()}
+                      onSidebarToggle={() => setIsSidebarOpen(true)}
                     />
                   )}
                 </Show>
@@ -168,6 +237,15 @@ const InstanceShell: Component<InstanceShellProps> = (props) => {
               <InfoView instanceId={props.instance.id} />
             </Show>
           </div>
+
+          <Show when={isCompactLayout() && isSidebarOpen()}>
+            <button
+              type="button"
+              class="session-sidebar-backdrop"
+              aria-label="Close session sidebar"
+              onClick={() => setIsSidebarOpen(false)}
+            />
+          </Show>
         </div>
       </Show>
 

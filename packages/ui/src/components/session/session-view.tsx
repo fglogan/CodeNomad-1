@@ -19,6 +19,8 @@ interface SessionViewProps {
   instanceId: string
   instanceFolder: string
   escapeInDebounce: boolean
+  showSidebarToggle?: boolean
+  onSidebarToggle?: () => void
 }
 
 export const SessionView: Component<SessionViewProps> = (props) => {
@@ -150,6 +152,8 @@ export const SessionView: Component<SessionViewProps> = (props) => {
                registerScrollToBottom={(fn) => {
                  scrollToBottomHandle = fn
                }}
+               showSidebarToggle={props.showSidebarToggle}
+               onSidebarToggle={props.onSidebarToggle}
              />
 
 
