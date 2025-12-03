@@ -114,9 +114,9 @@ export function RemoteAccessOverlay(props: RemoteAccessOverlayProps) {
           <Dialog.Content class="modal-surface remote-panel" tabIndex={-1}>
             <header class="remote-header">
               <div>
-                <p class="remote-eyebrow">Remote access</p>
-                <h2 class="remote-title">Share this CodeNomad server</h2>
-                <p class="remote-subtitle">Choose who can connect and share ready-to-open links or QR codes.</p>
+                <p class="remote-eyebrow">Remote handover</p>
+                <h2 class="remote-title">Connect to this session remotely</h2>
+                <p class="remote-subtitle">Use the addresses below to open CodeNomad from another device.</p>
               </div>
               <button type="button" class="remote-close" onClick={props.onClose} aria-label="Close remote access">
                 Close
@@ -130,7 +130,7 @@ export function RemoteAccessOverlay(props: RemoteAccessOverlayProps) {
                     <Shield class="remote-icon" />
                     <div>
                       <p class="remote-label">Listening mode</p>
-                      <p class="remote-help">Toggle whether other devices on your network can reach this server.</p>
+                      <p class="remote-help">Allow or limit remote handovers by binding to all interfaces or just localhost.</p>
                     </div>
                   </div>
                   <button class="remote-refresh" type="button" onClick={() => void refreshMeta()} disabled={loading()}>
@@ -170,7 +170,7 @@ export function RemoteAccessOverlay(props: RemoteAccessOverlayProps) {
                     <Wifi class="remote-icon" />
                     <div>
                       <p class="remote-label">Reachable addresses</p>
-                      <p class="remote-help">Use these URLs to connect from this or other devices.</p>
+                      <p class="remote-help">Launch or scan from another machine to hand over control.</p>
                     </div>
                   </div>
                 </div>
