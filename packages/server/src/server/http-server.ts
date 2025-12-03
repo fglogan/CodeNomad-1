@@ -42,6 +42,8 @@ interface HttpServerStartResult {
   displayHost: string
 }
 
+const DEFAULT_HTTP_PORT = 9898
+
 export function createHttpServer(deps: HttpServerDeps) {
   const app = Fastify({ logger: false })
   const proxyLogger = deps.logger.child({ component: "proxy" })
@@ -95,16 +97,40 @@ export function createHttpServer(deps: HttpServerDeps) {
   return {
     instance: app,
     start: async (): Promise<HttpServerStartResult> => {
-      const addressInfo = await app.listen({ port: deps.port, host: deps.host })
+      const attemptListen = async (requestedPort: number) => {
+        const addressInfo = await app.listen({ port: requestedPort, host: deps.host })
+        return { addressInfo, requestedPort }
+      }
 
-      let actualPort = deps.port
+      const autoPortRequested = deps.port === 0
+      const primaryPort = autoPortRequested ? DEFAULT_HTTP_PORT : deps.port
 
-      if (typeof addressInfo === "string") {
+      const shouldRetryWithEphemeral = (error: unknown) => {
+        if (!autoPortRequested) return false
+        const err = error as NodeJS.ErrnoException | undefined
+        return Boolean(err && err.code === "EADDRINUSE")
+      }
+
+      let listenResult
+
+      try {
+        listenResult = await attemptListen(primaryPort)
+      } catch (error) {
+        if (!shouldRetryWithEphemeral(error)) {
+          throw error
+        }
+        deps.logger.warn({ err: error, port: primaryPort }, "Preferred port unavailable, retrying on ephemeral port")
+        listenResult = await attemptListen(0)
+      }
+
+      let actualPort = listenResult.requestedPort
+
+      if (typeof listenResult.addressInfo === "string") {
         try {
-          const parsed = new URL(addressInfo)
-          actualPort = Number(parsed.port) || deps.port
+          const parsed = new URL(listenResult.addressInfo)
+          actualPort = Number(parsed.port) || listenResult.requestedPort
         } catch {
-          actualPort = deps.port
+          actualPort = listenResult.requestedPort
         }
       } else {
         const address = app.server.address()
