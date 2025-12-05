@@ -215,12 +215,6 @@ export default function MessageSection(props: MessageSectionProps) {
     scheduleAnchorScroll()
   }
 
-  createEffect(() => {
-    if (props.registerScrollToBottom) {
-      props.registerScrollToBottom(() => scrollToBottom(true))
-    }
-  })
-
   function handleScroll() {
     if (!containerRef) return
     if (pendingScrollFrame !== null) {
@@ -243,6 +237,12 @@ export default function MessageSection(props: MessageSectionProps) {
       scheduleScrollPersist()
     })
   }
+
+  createEffect(() => {
+    if (props.registerScrollToBottom) {
+      props.registerScrollToBottom(() => scrollToBottom(true))
+    }
+  })
 
   createEffect(() => {
     const target = containerRef
@@ -301,13 +301,6 @@ export default function MessageSection(props: MessageSectionProps) {
     }
     updateScrollIndicatorsFromVisibility()
   })
-
-  createEffect(() => {
-    if (autoScroll() && bottomSentinel()) {
-      scheduleAnchorScroll()
-    }
-  })
-
   createEffect(() => {
     const container = scrollElement()
     const topTarget = topSentinel()
@@ -337,6 +330,7 @@ export default function MessageSection(props: MessageSectionProps) {
   })
 
   onCleanup(() => {
+
     if (pendingScrollFrame !== null) {
       cancelAnimationFrame(pendingScrollFrame)
     }
