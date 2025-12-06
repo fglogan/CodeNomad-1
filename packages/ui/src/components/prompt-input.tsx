@@ -519,31 +519,19 @@ export default function PromptInput(props: PromptInputProps) {
       return
     }
 
-    const atStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0
-    const currentHistory = history()
-
-    if (e.key === "ArrowUp" && !showPicker() && atStart && currentHistory.length > 0) {
-      e.preventDefault()
-      if (historyIndex() === -1) {
-        setHistoryDraft(prompt())
+    if (e.key === "ArrowUp") {
+      const handled = selectPreviousHistory()
+      if (handled) {
+        e.preventDefault()
+        return
       }
-      const newIndex = historyIndex() === -1 ? 0 : Math.min(historyIndex() + 1, currentHistory.length - 1)
-      setHistoryIndex(newIndex)
-      setPrompt(currentHistory[newIndex])
-      return
     }
 
-    if (e.key === "ArrowDown" && !showPicker() && historyIndex() >= 0) {
-      e.preventDefault()
-      const newIndex = historyIndex() - 1
-      if (newIndex >= 0) {
-        setHistoryIndex(newIndex)
-        setPrompt(currentHistory[newIndex])
-      } else {
-        setHistoryIndex(-1)
-        const draft = historyDraft()
-        setPrompt(draft ?? "")
-        setHistoryDraft(null)
+    if (e.key === "ArrowDown") {
+      const handled = selectNextHistory()
+      if (handled) {
+        e.preventDefault()
+        return
       }
     }
   }
@@ -600,6 +588,60 @@ export default function PromptInput(props: PromptInputProps) {
     } finally {
       textareaRef?.focus()
     }
+  }
+ 
+  function focusTextareaEnd() {
+    if (!textareaRef) return
+    setTimeout(() => {
+      if (!textareaRef) return
+      const pos = textareaRef.value.length
+      textareaRef.setSelectionRange(pos, pos)
+      textareaRef.focus()
+    }, 0)
+  }
+ 
+  function canUseHistory(force = false) {
+    if (force) return true
+    if (showPicker()) return false
+    const textarea = textareaRef
+    if (!textarea) return false
+    return textarea.selectionStart === 0 && textarea.selectionEnd === 0
+  }
+ 
+  function selectPreviousHistory(force = false) {
+    const entries = history()
+    if (entries.length === 0) return false
+    if (!canUseHistory(force)) return false
+ 
+    if (historyIndex() === -1) {
+      setHistoryDraft(prompt())
+    }
+ 
+    const newIndex = historyIndex() === -1 ? 0 : Math.min(historyIndex() + 1, entries.length - 1)
+    setHistoryIndex(newIndex)
+    setPrompt(entries[newIndex])
+    focusTextareaEnd()
+    return true
+  }
+ 
+  function selectNextHistory(force = false) {
+    const entries = history()
+    if (entries.length === 0) return false
+    if (!canUseHistory(force)) return false
+    if (historyIndex() === -1) return false
+ 
+    const newIndex = historyIndex() - 1
+    if (newIndex >= 0) {
+      setHistoryIndex(newIndex)
+      setPrompt(entries[newIndex])
+    } else {
+      setHistoryIndex(-1)
+      const draft = historyDraft()
+      setPrompt(draft ?? "")
+      setHistoryDraft(null)
+    }
+    focusTextareaEnd()
+    return true
   }
  
   function handleAbort() {
@@ -828,6 +870,10 @@ export default function PromptInput(props: PromptInputProps) {
 
   const canStop = () => Boolean(props.isSessionBusy && props.onAbortSession)
  
+  const hasHistory = () => history().length > 0
+  const canHistoryGoPrevious = () => hasHistory() && (historyIndex() === -1 || historyIndex() < history().length - 1)
+  const canHistoryGoNext = () => historyIndex() >= 0
+ 
   const canSend = () => {
     if (props.disabled) return false
     const hasText = prompt().trim().length > 0
@@ -986,6 +1032,34 @@ export default function PromptInput(props: PromptInputProps) {
               autoCapitalize="off"
               autocomplete="off"
             />
+            <Show when={hasHistory()}>
+              <div class="prompt-history-top">
+                <button
+                  type="button"
+                  class="prompt-history-button"
+                  onClick={() => selectPreviousHistory(true)}
+                  disabled={!canHistoryGoPrevious()}
+                  aria-label="Previous prompt"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3" aria-hidden="true">
+                    <path d="M10 6l-4 5h8L10 6z" />
+                  </svg>
+                </button>
+              </div>
+              <div class="prompt-history-bottom">
+                <button
+                  type="button"
+                  class="prompt-history-button"
+                  onClick={() => selectNextHistory(true)}
+                  disabled={!canHistoryGoNext()}
+                  aria-label="Next prompt"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3" aria-hidden="true">
+                    <path d="M10 14l4-5H6l4 5z" />
+                  </svg>
+                </button>
+              </div>
+            </Show>
             <Show when={shouldShowOverlay()}>
               <div class={`prompt-input-overlay ${mode() === "shell" ? "shell-mode" : ""}`}>
                 <Show

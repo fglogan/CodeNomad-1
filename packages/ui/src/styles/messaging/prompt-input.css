@@ -23,7 +23,7 @@
 }
 
  .prompt-input {
-   @apply flex-1 w-full min-h-[56px] max-h-[96px] px-3 pt-2.5 pb-4 border rounded-md text-sm resize-none outline-none transition-colors;
+   @apply flex-1 w-full min-h-[56px] max-h-[96px] pl-3 pr-10 pt-2.5 pb-4 border rounded-md text-sm resize-none outline-none transition-colors;
    font-family: inherit;
    background-color: var(--surface-base);
    color: inherit;
@@ -49,6 +49,42 @@
 
 .prompt-input-overlay.shell-mode {
   color: var(--text-primary);
+}
+
+.prompt-history-top,
+.prompt-history-bottom {
+  position: absolute;
+  right: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.prompt-history-top {
+  top: 0.3rem;
+}
+
+.prompt-history-bottom {
+  bottom: 0.3rem;
+}
+
+.prompt-history-button {
+  @apply w-8 h-8 flex items-center justify-center rounded-md;
+  color: var(--text-muted);
+  background-color: rgba(15, 23, 42, 0.04);
+  transition: background-color 0.15s ease, color 0.15s ease;
+  padding: 0;
+}
+
+.prompt-history-button:hover:not(:disabled) {
+  background-color: var(--surface-secondary);
+  color: var(--text-primary);
+}
+
+.prompt-history-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .prompt-overlay-text {
