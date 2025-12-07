@@ -5,9 +5,9 @@ mod cli_manager;
 use cli_manager::{CliProcessManager, CliStatus};
 use serde_json::json;
 use tauri::menu::Menu;
-use tauri::plugin::Builder as PluginBuilder;
+use tauri::plugin::{Builder as PluginBuilder, TauriPlugin};
 use tauri::webview::Webview;
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime, Wry};
 use tauri_plugin_opener::OpenerExt;
 use url::Url;
 
@@ -60,7 +60,7 @@ fn intercept_navigation<R: Runtime>(webview: &Webview<R>, url: &Url) -> bool {
 }
 
 fn main() {
-    let navigation_guard = PluginBuilder::new("external-link-guard")
+    let navigation_guard: TauriPlugin<Wry, ()> = PluginBuilder::new("external-link-guard")
         .on_navigation(|webview, url| intercept_navigation(webview, url))
         .build();
 
