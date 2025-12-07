@@ -1,7 +1,8 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import Kbd from "./kbd"
-import MessageBlockList from "./message-block-list"
+import MessageBlockList, { getMessageAnchorId } from "./message-block-list"
 import MessageListHeader from "./message-list-header"
+import MessageTimeline, { buildTimelineSegments, type TimelineSegment } from "./message-timeline"
 import { useConfig } from "../stores/preferences"
 import { getSessionInfo } from "../stores/sessions"
 import { showCommandPalette } from "../stores/command-palette"
@@ -76,14 +77,21 @@ export default function MessageSection(props: MessageSectionProps) {
   const handleCommandPaletteClick = () => {
     showCommandPalette(props.instanceId)
   }
-
+ 
+  const handleTimelineSegmentClick = (segment: TimelineSegment) => {
+    if (typeof document === "undefined") return
+    const anchor = document.getElementById(getMessageAnchorId(segment.messageId))
+    anchor?.scrollIntoView({ block: "start", behavior: "smooth" })
+  }
+ 
   const messageIndexMap = createMemo(() => {
+
     const map = new Map<string, number>()
     const ids = messageIds()
     ids.forEach((id, index) => map.set(id, index))
     return map
   })
-
+ 
   const lastAssistantIndex = createMemo(() => {
     const ids = messageIds()
     const resolvedStore = store()
@@ -95,8 +103,24 @@ export default function MessageSection(props: MessageSectionProps) {
     }
     return -1
   })
-
+ 
+  const timelineSegments = createMemo<TimelineSegment[]>(() => {
+    const ids = messageIds()
+    const resolvedStore = store()
+    const segments: TimelineSegment[] = []
+    ids.forEach((messageId) => {
+      const record = resolvedStore.getMessage(messageId)
+      if (!record) return
+      const built = buildTimelineSegments(props.instanceId, record)
+      segments.push(...built)
+    })
+    return segments
+  })
+ 
+  const hasTimelineSegments = () => timelineSegments().length > 0
+ 
   const changeToken = createMemo(() => String(sessionRevision()))
+
 
   const scrollCache = useScrollCache({
     instanceId: () => props.instanceId,
@@ -362,76 +386,87 @@ export default function MessageSection(props: MessageSectionProps) {
         forceCompactStatusLayout={props.forceCompactStatusLayout}
       />
 
-      <div class="message-stream" ref={setContainerRef} onScroll={handleScroll}>
-        <div ref={setTopSentinel} aria-hidden="true" style={{ height: "1px" }} />
-        <Show when={!props.loading && messageIds().length === 0}>
-          <div class="empty-state">
-            <div class="empty-state-content">
-              <div class="flex flex-col items-center gap-3 mb-6">
-                <img src={codeNomadLogo} alt="CodeNomad logo" class="h-48 w-auto" loading="lazy" />
-                <h1 class="text-3xl font-semibold text-primary">CodeNomad</h1>
+      <div class={`message-layout${hasTimelineSegments() ? " message-layout--with-timeline" : ""}`}>
+        <div class="message-stream-shell">
+          <div class="message-stream" ref={setContainerRef} onScroll={handleScroll}>
+            <div ref={setTopSentinel} aria-hidden="true" style={{ height: "1px" }} />
+            <Show when={!props.loading && messageIds().length === 0}>
+              <div class="empty-state">
+                <div class="empty-state-content">
+                  <div class="flex flex-col items-center gap-3 mb-6">
+                    <img src={codeNomadLogo} alt="CodeNomad logo" class="h-48 w-auto" loading="lazy" />
+                    <h1 class="text-3xl font-semibold text-primary">CodeNomad</h1>
+                  </div>
+                  <h3>Start a conversation</h3>
+                  <p>Type a message below or open the Command Palette:</p>
+                  <ul>
+                    <li>
+                      <span>Command Palette</span>
+                      <Kbd shortcut="cmd+shift+p" class="ml-2" />
+                    </li>
+                    <li>Ask about your codebase</li>
+                    <li>
+                      Attach files with <code>@</code>
+                    </li>
+                  </ul>
+                </div>
               </div>
-              <h3>Start a conversation</h3>
-              <p>Type a message below or open the Command Palette:</p>
-              <ul>
-                <li>
-                  <span>Command Palette</span>
-                  <Kbd shortcut="cmd+shift+p" class="ml-2" />
-                </li>
-                <li>Ask about your codebase</li>
-                <li>
-                  Attach files with <code>@</code>
-                </li>
-              </ul>
+            </Show>
+ 
+            <Show when={props.loading}>
+              <div class="loading-state">
+                <div class="spinner" />
+                <p>Loading messages...</p>
+              </div>
+            </Show>
+ 
+            <MessageBlockList
+              instanceId={props.instanceId}
+              sessionId={props.sessionId}
+              store={store}
+              messageIds={messageIds}
+              messageIndexMap={messageIndexMap}
+              lastAssistantIndex={lastAssistantIndex}
+              showThinking={() => preferences().showThinkingBlocks}
+              thinkingDefaultExpanded={() => (preferences().thinkingBlocksExpansion ?? "expanded") === "expanded"}
+              showUsageMetrics={showUsagePreference}
+              scrollContainer={scrollElement}
+              loading={props.loading}
+              onRevert={props.onRevert}
+              onFork={props.onFork}
+              onContentRendered={handleContentRendered}
+              setBottomSentinel={setBottomSentinel}
+            />
+          </div>
+ 
+          <Show when={showScrollTopButton() || showScrollBottomButton()}>
+            <div class="message-scroll-button-wrapper">
+              <Show when={showScrollTopButton()}>
+                <button type="button" class="message-scroll-button" onClick={() => scrollToTop()} aria-label="Scroll to first message">
+                  <span class="message-scroll-icon" aria-hidden="true">↑</span>
+                </button>
+              </Show>
+              <Show when={showScrollBottomButton()}>
+                <button
+                  type="button"
+                  class="message-scroll-button"
+                  onClick={() => scrollToBottom()}
+                  aria-label="Scroll to latest message"
+                >
+                  <span class="message-scroll-icon" aria-hidden="true">↓</span>
+                </button>
+              </Show>
             </div>
-          </div>
-        </Show>
-
-        <Show when={props.loading}>
-          <div class="loading-state">
-            <div class="spinner" />
-            <p>Loading messages...</p>
-          </div>
-        </Show>
-
-        <MessageBlockList
-          instanceId={props.instanceId}
-          sessionId={props.sessionId}
-          store={store}
-          messageIds={messageIds}
-          messageIndexMap={messageIndexMap}
-          lastAssistantIndex={lastAssistantIndex}
-          showThinking={() => preferences().showThinkingBlocks}
-          thinkingDefaultExpanded={() => (preferences().thinkingBlocksExpansion ?? "expanded") === "expanded"}
-          showUsageMetrics={showUsagePreference}
-          scrollContainer={scrollElement}
-          loading={props.loading}
-          onRevert={props.onRevert}
-          onFork={props.onFork}
-          onContentRendered={handleContentRendered}
-          setBottomSentinel={setBottomSentinel}
-        />
-      </div>
-
-      <Show when={showScrollTopButton() || showScrollBottomButton()}>
-        <div class="message-scroll-button-wrapper">
-          <Show when={showScrollTopButton()}>
-            <button type="button" class="message-scroll-button" onClick={() => scrollToTop()} aria-label="Scroll to first message">
-              <span class="message-scroll-icon" aria-hidden="true">↑</span>
-            </button>
-          </Show>
-          <Show when={showScrollBottomButton()}>
-            <button
-              type="button"
-              class="message-scroll-button"
-              onClick={() => scrollToBottom()}
-              aria-label="Scroll to latest message"
-            >
-              <span class="message-scroll-icon" aria-hidden="true">↓</span>
-            </button>
           </Show>
         </div>
-      </Show>
+ 
+        <Show when={hasTimelineSegments()}>
+          <div class="message-timeline-sidebar">
+            <MessageTimeline segments={timelineSegments()} onSegmentClick={handleTimelineSegmentClick} />
+          </div>
+        </Show>
+      </div>
+
     </div>
   )
 }
