@@ -118,6 +118,7 @@ export default function MessageSection(props: MessageSectionProps) {
   })
  
   const hasTimelineSegments = () => timelineSegments().length > 0
+  const [activeMessageId, setActiveMessageId] = createSignal<string | null>(null)
  
   const changeToken = createMemo(() => String(sessionRevision()))
 
@@ -353,8 +354,43 @@ export default function MessageSection(props: MessageSectionProps) {
     observer.observe(bottomTarget)
     onCleanup(() => observer.disconnect())
   })
-
+ 
+  createEffect(() => {
+    const container = scrollElement()
+    const ids = messageIds()
+    if (!container || ids.length === 0) return
+    if (typeof document === "undefined") return
+ 
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let best: IntersectionObserverEntry | null = null
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          if (!best || entry.boundingClientRect.top < best.boundingClientRect.top) {
+            best = entry
+          }
+        }
+        if (best) {
+          const anchorId = (best.target as HTMLElement).id
+          const messageId = anchorId.startsWith("message-anchor-") ? anchorId.slice("message-anchor-".length) : anchorId
+          setActiveMessageId((current) => (current === messageId ? current : messageId))
+        }
+      },
+      { root: container, rootMargin: "-10% 0px -80% 0px", threshold: 0 },
+    )
+ 
+    ids.forEach((messageId) => {
+      const anchor = document.getElementById(getMessageAnchorId(messageId))
+      if (anchor) {
+        observer.observe(anchor)
+      }
+    })
+ 
+    onCleanup(() => observer.disconnect())
+  })
+ 
   onCleanup(() => {
+
 
     if (pendingScrollFrame !== null) {
       cancelAnimationFrame(pendingScrollFrame)
@@ -462,7 +498,11 @@ export default function MessageSection(props: MessageSectionProps) {
  
         <Show when={hasTimelineSegments()}>
           <div class="message-timeline-sidebar">
-            <MessageTimeline segments={timelineSegments()} onSegmentClick={handleTimelineSegmentClick} />
+            <MessageTimeline
+              segments={timelineSegments()}
+              onSegmentClick={handleTimelineSegmentClick}
+              activeMessageId={activeMessageId()}
+            />
           </div>
         </Show>
       </div>

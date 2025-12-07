@@ -1,4 +1,4 @@
-import { For, type Component } from "solid-js"
+import { For, createEffect, onCleanup, type Component } from "solid-js"
 import type { ClientPart } from "../types/message"
 import type { MessageRecord } from "../stores/message-v2/types"
 import { buildRecordDisplayData } from "../stores/message-v2/record-display-cache"
@@ -16,6 +16,7 @@ export interface TimelineSegment {
 interface MessageTimelineProps {
   segments: TimelineSegment[]
   onSegmentClick?: (segment: TimelineSegment) => void
+  activeMessageId?: string | null
 }
 
 const SEGMENT_LABELS: Record<TimelineSegmentType, string> = {
@@ -202,23 +203,57 @@ export function buildTimelineSegments(instanceId: string, record: MessageRecord)
 }
 
 const MessageTimeline: Component<MessageTimelineProps> = (props) => {
+  const buttonRefs = new Map<string, HTMLButtonElement>()
+ 
+  const registerButtonRef = (segmentId: string, element: HTMLButtonElement | null) => {
+    if (element) {
+      buttonRefs.set(segmentId, element)
+    } else {
+      buttonRefs.delete(segmentId)
+    }
+  }
+ 
+  createEffect(() => {
+    const activeId = props.activeMessageId
+    if (!activeId) return
+    const targetSegment = props.segments.find((segment) => segment.messageId === activeId)
+    if (!targetSegment) return
+    const element = buttonRefs.get(targetSegment.id)
+    if (!element) return
+    const timer = typeof window !== "undefined" ? window.setTimeout(() => {
+      element.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    }, 120) : null
+    onCleanup(() => {
+      if (timer !== null && typeof window !== "undefined") {
+        window.clearTimeout(timer)
+      }
+    })
+  })
+ 
   return (
     <div class="message-timeline" role="navigation" aria-label="Message timeline">
       <For each={props.segments}>
-        {(segment) => (
-          <button
-            type="button"
-            class={`message-timeline-segment message-timeline-${segment.type}`}
-            title={segment.tooltip}
-            onClick={() => props.onSegmentClick?.(segment)}
-          >
-            <span class="message-timeline-label message-timeline-label-full">{segment.label}</span>
-            <span class="message-timeline-label message-timeline-label-short">{SEGMENT_SHORT_LABELS[segment.type]}</span>
-          </button>
-        )}
+        {(segment) => {
+          onCleanup(() => buttonRefs.delete(segment.id))
+          const isActive = () => props.activeMessageId === segment.messageId
+          return (
+            <button
+              ref={(el) => registerButtonRef(segment.id, el)}
+              type="button"
+              class={`message-timeline-segment message-timeline-${segment.type} ${isActive() ? "message-timeline-segment-active" : ""}`}
+              title={segment.tooltip}
+              aria-current={isActive() ? "true" : undefined}
+              onClick={() => props.onSegmentClick?.(segment)}
+            >
+              <span class="message-timeline-label message-timeline-label-full">{segment.label}</span>
+              <span class="message-timeline-label message-timeline-label-short">{SEGMENT_SHORT_LABELS[segment.type]}</span>
+            </button>
+          )
+        }}
       </For>
     </div>
   )
 }
+
 
 export default MessageTimeline
