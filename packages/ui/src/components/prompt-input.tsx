@@ -25,7 +25,7 @@ interface PromptInputProps {
   escapeInDebounce?: boolean
   isSessionBusy?: boolean
   onAbortSession?: () => Promise<void>
-  registerQuoteHandler?: (handler: (text: string) => void) => void | (() => void)
+  registerQuoteHandler?: (handler: (text: string, mode: "quote" | "code") => void) => void | (() => void)
 }
 
 export default function PromptInput(props: PromptInputProps) {
@@ -43,7 +43,7 @@ export default function PromptInput(props: PromptInputProps) {
   const [pasteCount, setPasteCount] = createSignal(0)
   const [imageCount, setImageCount] = createSignal(0)
   const [mode, setMode] = createSignal<"normal" | "shell">("normal")
-  const QUOTE_INSERT_MAX_LENGTH = 2000
+  const SELECTION_INSERT_MAX_LENGTH = 2000
   let textareaRef: HTMLTextAreaElement | undefined
   let containerRef: HTMLDivElement | undefined
 
@@ -55,7 +55,13 @@ export default function PromptInput(props: PromptInputProps) {
 
   createEffect(() => {
     if (!props.registerQuoteHandler) return
-    const cleanup = props.registerQuoteHandler((text) => insertQuotedSelection(text))
+    const cleanup = props.registerQuoteHandler((text, mode) => {
+      if (mode === "code") {
+        insertCodeSelection(text)
+      } else {
+        insertQuotedSelection(text)
+      }
+    })
     onCleanup(() => {
       if (typeof cleanup === "function") {
         cleanup()
@@ -881,20 +887,7 @@ export default function PromptInput(props: PromptInputProps) {
     textareaRef?.focus()
   }
 
-  function insertQuotedSelection(rawText: string) {
-    const normalized = (rawText ?? "").replace(/\r/g, "").trim()
-    if (!normalized) return
-    const limited =
-      normalized.length > QUOTE_INSERT_MAX_LENGTH ? normalized.slice(0, QUOTE_INSERT_MAX_LENGTH).trimEnd() : normalized
-    const lines = limited
-      .split(/\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-    if (lines.length === 0) return
-
-    const blockquote = lines.map((line) => `> ${line}`).join("\n")
-    if (!blockquote) return
-
+  function insertBlockContent(block: string) {
     const textarea = textareaRef
     const current = prompt()
     const start = textarea ? textarea.selectionStart : current.length
@@ -902,7 +895,7 @@ export default function PromptInput(props: PromptInputProps) {
     const before = current.substring(0, start)
     const after = current.substring(end)
     const needsLeading = before.length > 0 && !before.endsWith("\n") ? "\n" : ""
-    const insertion = `${needsLeading}${blockquote}\n\n`
+    const insertion = `${needsLeading}${block}`
     const nextValue = before + insertion + after
 
     setPrompt(nextValue)
@@ -918,6 +911,38 @@ export default function PromptInput(props: PromptInputProps) {
         textarea.setSelectionRange(cursor, cursor)
       }, 0)
     }
+  }
+
+  function insertQuotedSelection(rawText: string) {
+    const normalized = (rawText ?? "").replace(/\r/g, "").trim()
+    if (!normalized) return
+    const limited =
+      normalized.length > SELECTION_INSERT_MAX_LENGTH
+        ? normalized.slice(0, SELECTION_INSERT_MAX_LENGTH).trimEnd()
+        : normalized
+    const lines = limited
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+    if (lines.length === 0) return
+
+    const blockquote = lines.map((line) => `> ${line}`).join("\n")
+    if (!blockquote) return
+
+    insertBlockContent(`${blockquote}\n\n`)
+  }
+
+  function insertCodeSelection(rawText: string) {
+    const normalized = (rawText ?? "").replace(/\r/g, "")
+    const limited =
+      normalized.length > SELECTION_INSERT_MAX_LENGTH
+        ? normalized.slice(0, SELECTION_INSERT_MAX_LENGTH)
+        : normalized
+    const trimmed = limited.replace(/^\n+/, "").replace(/\n+$/, "")
+    if (!trimmed) return
+
+    const block = "```\n" + trimmed + "\n```\n\n"
+    insertBlockContent(block)
   }
 
   const canStop = () => Boolean(props.isSessionBusy && props.onAbortSession)

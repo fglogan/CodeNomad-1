@@ -38,7 +38,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
     return getSessionBusyStatus(props.instanceId, currentSession.id)
   })
   let scrollToBottomHandle: (() => void) | undefined
-  let quoteHandler: ((text: string) => void) | null = null
+  let quoteHandler: ((text: string, mode: "quote" | "code") => void) | null = null
  
   createEffect(() => {
     const currentSession = session()
@@ -47,7 +47,7 @@ export const SessionView: Component<SessionViewProps> = (props) => {
     }
   })
 
-  function registerQuoteHandler(handler: (text: string) => void) {
+  function registerQuoteHandler(handler: (text: string, mode: "quote" | "code") => void) {
     quoteHandler = handler
     return () => {
       if (quoteHandler === handler) {
@@ -56,9 +56,9 @@ export const SessionView: Component<SessionViewProps> = (props) => {
     }
   }
 
-  function handleQuoteSelection(text: string) {
+  function handleQuoteSelection(text: string, mode: "quote" | "code") {
     if (quoteHandler) {
-      quoteHandler(text)
+      quoteHandler(text, mode)
     }
   }
  

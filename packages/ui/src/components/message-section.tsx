@@ -33,7 +33,7 @@ export interface MessageSectionProps {
   showSidebarToggle?: boolean
   onSidebarToggle?: () => void
   forceCompactStatusLayout?: boolean
-  onQuoteSelection?: (text: string) => void
+  onQuoteSelection?: (text: string, mode: "quote" | "code") => void
 }
 
 export default function MessageSection(props: MessageSectionProps) {
@@ -309,10 +309,10 @@ export default function MessageSection(props: MessageSectionProps) {
     updateQuoteSelectionFromSelection()
   }
 
-  function handleQuoteSelectionRequest() {
+  function handleQuoteSelectionRequest(mode: "quote" | "code") {
     const info = quoteSelection()
     if (!info || !props.onQuoteSelection) return
-    props.onQuoteSelection(info.text)
+    props.onQuoteSelection(info.text, mode)
     clearQuoteSelection()
     if (typeof window !== "undefined") {
       const selection = window.getSelection()
@@ -618,9 +618,14 @@ export default function MessageSection(props: MessageSectionProps) {
                 class="message-quote-popover"
                 style={{ top: `${selection().top}px`, left: `${selection().left}px` }}
               >
-                <button type="button" class="message-quote-button" onClick={handleQuoteSelectionRequest}>
-                  Add to prompt
-                </button>
+                <div class="message-quote-button-group">
+                  <button type="button" class="message-quote-button" onClick={() => handleQuoteSelectionRequest("quote")}>
+                    Add as quote
+                  </button>
+                  <button type="button" class="message-quote-button" onClick={() => handleQuoteSelectionRequest("code")}>
+                    Add as code
+                  </button>
+                </div>
               </div>
             )}
           </Show>
