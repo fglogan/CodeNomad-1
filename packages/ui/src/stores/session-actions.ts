@@ -178,8 +178,8 @@ async function sendMessage(
   })
 
   try {
-    log.info("session.prompt", { instanceId, sessionId, requestBody })
-    const response = await instance.client.session.prompt({
+    log.info("session.promptAsync", { instanceId, sessionId, requestBody })
+    const response = await instance.client.session.promptAsync({
       path: { id: sessionId },
       body: requestBody,
     })
