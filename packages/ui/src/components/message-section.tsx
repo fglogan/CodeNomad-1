@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { Show, createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js"
 import Kbd from "./kbd"
 import MessageBlockList, { getMessageAnchorId } from "./message-block-list"
 import MessageListHeader from "./message-list-header"
@@ -88,14 +88,6 @@ export default function MessageSection(props: MessageSectionProps) {
     anchor?.scrollIntoView({ block: "start", behavior: "smooth" })
   }
  
-  const messageIndexMap = createMemo(() => {
-
-    const map = new Map<string, number>()
-    const ids = messageIds()
-    ids.forEach((id, index) => map.set(id, index))
-    return map
-  })
- 
   const lastAssistantIndex = createMemo(() => {
     const ids = messageIds()
     const resolvedStore = store()
@@ -108,20 +100,53 @@ export default function MessageSection(props: MessageSectionProps) {
     return -1
   })
  
-  const timelineSegments = createMemo<TimelineSegment[]>(() => {
-    const ids = messageIds()
-    const resolvedStore = store()
+  const [timelineSegments, setTimelineSegments] = createSignal<TimelineSegment[]>([])
+  const hasTimelineSegments = () => timelineSegments().length > 0
+
+  const seenTimelineMessageIds = new Set<string>()
+  const seenTimelineSegmentKeys = new Set<string>()
+
+  function makeTimelineKey(segment: TimelineSegment) {
+    return `${segment.messageId}:${segment.id}:${segment.type}`
+  }
+
+  function seedTimeline() {
+    seenTimelineMessageIds.clear()
+    seenTimelineSegmentKeys.clear()
+    const ids = untrack(messageIds)
+    const resolvedStore = untrack(store)
     const segments: TimelineSegment[] = []
     ids.forEach((messageId) => {
       const record = resolvedStore.getMessage(messageId)
       if (!record) return
+      seenTimelineMessageIds.add(messageId)
       const built = buildTimelineSegments(props.instanceId, record)
-      segments.push(...built)
+      built.forEach((segment) => {
+        const key = makeTimelineKey(segment)
+        if (seenTimelineSegmentKeys.has(key)) return
+        seenTimelineSegmentKeys.add(key)
+        segments.push(segment)
+      })
     })
-    return segments
-  })
- 
-  const hasTimelineSegments = () => timelineSegments().length > 0
+    setTimelineSegments(segments)
+  }
+
+  function appendTimelineForMessage(messageId: string) {
+    const record = untrack(() => store().getMessage(messageId))
+    if (!record) return
+    const built = buildTimelineSegments(props.instanceId, record)
+    if (built.length === 0) return
+    const newSegments: TimelineSegment[] = []
+    built.forEach((segment) => {
+      const key = makeTimelineKey(segment)
+      if (seenTimelineSegmentKeys.has(key)) return
+      seenTimelineSegmentKeys.add(key)
+      newSegments.push(segment)
+    })
+    if (newSegments.length > 0) {
+      setTimelineSegments((prev) => [...prev, ...newSegments])
+    }
+  }
   const [activeMessageId, setActiveMessageId] = createSignal<string | null>(null)
  
   const changeToken = createMemo(() => String(sessionRevision()))
@@ -164,8 +189,6 @@ export default function MessageSection(props: MessageSectionProps) {
   let scrollToBottomFrame: number | null = null
   let scrollToBottomDelayedFrame: number | null = null
   let pendingInitialScroll = true
-
-  const [initialRenderComplete, setInitialRenderComplete] = createSignal(false)
 
   function markUserScrollIntent() {
     const now = typeof performance !== "undefined" ? performance.now() : Date.now()
@@ -390,10 +413,6 @@ export default function MessageSection(props: MessageSectionProps) {
     scheduleAnchorScroll()
   }
 
-  function handleInitialRenderComplete() {
-    setInitialRenderComplete(true)
-  }
-
   function handleScroll() {
 
     if (!containerRef) return
@@ -444,12 +463,123 @@ export default function MessageSection(props: MessageSectionProps) {
     const loading = Boolean(props.loading)
     if (loading) {
       pendingInitialScroll = true
-      setInitialRenderComplete(false)
       return
     }
-    if (pendingInitialScroll && initialRenderComplete()) {
-      pendingInitialScroll = false
-      requestScrollToBottom(false)
+    if (!pendingInitialScroll) {
+      return
+    }
+    const container = scrollElement()
+    const sentinel = bottomSentinel()
+    if (!container || !sentinel || messageIds().length === 0) {
+      return
+    }
+    pendingInitialScroll = false
+    requestScrollToBottom(true)
+  })
+
+  let previousTimelineIds: string[] = []
+  let previousLastTimelineMessageId: string | null = null
+  let previousLastTimelinePartCount = 0
+
+  createEffect(() => {
+    const loading = Boolean(props.loading)
+    const ids = messageIds()
+
+    if (loading) {
+      previousTimelineIds = []
+      previousLastTimelineMessageId = null
+      previousLastTimelinePartCount = 0
+      setTimelineSegments([])
+      seenTimelineMessageIds.clear()
+      seenTimelineSegmentKeys.clear()
+      return
+    }
+
+    if (previousTimelineIds.length === 0 && ids.length > 0) {
+      seedTimeline()
+      previousTimelineIds = ids.slice()
+      return
+    }
+
+    if (ids.length < previousTimelineIds.length) {
+      seedTimeline()
+      previousTimelineIds = ids.slice()
+      return
+    }
+
+    if (ids.length === previousTimelineIds.length) {
+      let changedIndex = -1
+      let changeCount = 0
+      for (let index = 0; index < ids.length; index++) {
+        if (ids[index] !== previousTimelineIds[index]) {
+          changedIndex = index
+          changeCount += 1
+          if (changeCount > 1) break
+        }
+      }
+      if (changeCount === 1 && changedIndex >= 0) {
+        const oldId = previousTimelineIds[changedIndex]
+        const newId = ids[changedIndex]
+        if (seenTimelineMessageIds.has(oldId) && !seenTimelineMessageIds.has(newId)) {
+          seenTimelineMessageIds.delete(oldId)
+          seenTimelineMessageIds.add(newId)
+          setTimelineSegments((prev) => {
+            const next = prev.map((segment) => {
+              if (segment.messageId !== oldId) return segment
+              const updatedId = segment.id.replace(oldId, newId)
+              return { ...segment, messageId: newId, id: updatedId }
+            })
+            seenTimelineSegmentKeys.clear()
+            next.forEach((segment) => seenTimelineSegmentKeys.add(makeTimelineKey(segment)))
+            return next
+          })
+          previousTimelineIds = ids.slice()
+          return
+        }
+      }
+    }
+
+    const newIds: string[] = []
+    ids.forEach((id) => {
+      if (!seenTimelineMessageIds.has(id)) {
+        newIds.push(id)
+      }
+    })
+
+    if (newIds.length > 0) {
+      newIds.forEach((id) => {
+        seenTimelineMessageIds.add(id)
+        appendTimelineForMessage(id)
+      })
+    }
+
+    previousTimelineIds = ids.slice()
+  })
+
+  createEffect(() => {
+    if (props.loading) return
+    const ids = messageIds()
+    if (ids.length === 0) return
+    const lastId = ids[ids.length - 1]
+    if (!lastId) return
+    const record = store().getMessage(lastId)
+    if (!record) return
+    const partCount = record.partIds.length
+    if (lastId === previousLastTimelineMessageId && partCount === previousLastTimelinePartCount) {
+      return
+    }
+    previousLastTimelineMessageId = lastId
+    previousLastTimelinePartCount = partCount
+    const built = buildTimelineSegments(props.instanceId, record)
+    const newSegments: TimelineSegment[] = []
+    built.forEach((segment) => {
+      const key = makeTimelineKey(segment)
+      if (seenTimelineSegmentKeys.has(key)) return
+      seenTimelineSegmentKeys.add(key)
+      newSegments.push(segment)
+    })
+    if (newSegments.length > 0) {
+      setTimelineSegments((prev) => [...prev, ...newSegments])
     }
   })
 
@@ -677,7 +807,6 @@ export default function MessageSection(props: MessageSectionProps) {
               sessionId={props.sessionId}
               store={store}
               messageIds={messageIds}
-              messageIndexMap={messageIndexMap}
               lastAssistantIndex={lastAssistantIndex}
               showThinking={() => preferences().showThinkingBlocks}
               thinkingDefaultExpanded={() => (preferences().thinkingBlocksExpansion ?? "expanded") === "expanded"}
@@ -689,7 +818,6 @@ export default function MessageSection(props: MessageSectionProps) {
               onContentRendered={handleContentRendered}
               setBottomSentinel={setBottomSentinel}
               suspendMeasurements={() => !isActive()}
-              onInitialRenderComplete={handleInitialRenderComplete}
             />
 
 
