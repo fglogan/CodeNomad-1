@@ -118,21 +118,16 @@ function extractDiagnostics(state: ToolState | undefined): DiagnosticEntry[] {
   ].find((value) => typeof value === "string" && value.length > 0) as string | undefined
 
   const normalizedPreferred = preferredPath ? normalizeDiagnosticPath(preferredPath) : undefined
+  if (!normalizedPreferred) return []
   const candidateEntries = Object.entries(diagnosticsMap).filter(([, items]) => Array.isArray(items) && items.length > 0)
   if (candidateEntries.length === 0) return []
 
-  const prioritizedEntries = (() => {
-    if (!normalizedPreferred) return candidateEntries
-    const matched = candidateEntries.filter(([path]) => {
-      const normalized = normalizeDiagnosticPath(path)
-      if (normalized === normalizedPreferred) return true
-      if (normalized.endsWith(`/${normalizedPreferred}`)) return true
-      const normalizedBase = normalized.split("/").pop()
-      const preferredBase = normalizedPreferred.split("/").pop()
-      return normalizedBase && preferredBase ? normalizedBase === preferredBase : false
-    })
-    return matched.length > 0 ? matched : candidateEntries
-  })()
+  const prioritizedEntries = candidateEntries.filter(([path]) => {
+    const normalized = normalizeDiagnosticPath(path)
+    return normalized === normalizedPreferred
+  })
+
+  if (prioritizedEntries.length === 0) return []
 
   const entries: DiagnosticEntry[] = []
   for (const [pathKey, list] of prioritizedEntries) {
