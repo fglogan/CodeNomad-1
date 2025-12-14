@@ -851,7 +851,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
       if (!todoState) {
         return <p class="text-xs text-secondary">Nothing planned yet.</p>
       }
-      return <TodoListView state={todoState} emptyLabel="Nothing planned yet." />
+      return <TodoListView state={todoState} emptyLabel="Nothing planned yet." showStatusLabel={false} />
     }
 
     const sections = [

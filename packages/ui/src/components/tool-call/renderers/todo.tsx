@@ -1,4 +1,4 @@
-import { For } from "solid-js"
+import { For, Show } from "solid-js"
 import type { ToolState } from "@opencode-ai/sdk"
 import type { ToolRenderer } from "../types"
 import { readToolStatePayload } from "../utils"
@@ -61,6 +61,7 @@ function getTodoStatusLabel(status: TodoViewStatus): string {
 interface TodoListViewProps {
   state?: ToolState
   emptyLabel?: string
+  showStatusLabel?: boolean
 }
 
 export function TodoListView(props: TodoListViewProps) {
@@ -88,12 +89,15 @@ export function TodoListView(props: TodoListViewProps) {
                 role="listitem"
               >
                 <span class="tool-call-todo-checkbox" data-status={todo.status} aria-label={label}></span>
-                <div class="tool-call-todo-body">
-                  <div class="tool-call-todo-heading">
-                    <span class="tool-call-todo-text">{todo.content}</span>
-                    <span class={`tool-call-todo-status tool-call-todo-status-${todo.status}`}>{label}</span>
+                  <div class="tool-call-todo-body">
+                    <div class="tool-call-todo-heading">
+                      <span class="tool-call-todo-text">{todo.content}</span>
+                      <Show when={props.showStatusLabel !== false}>
+                        <span class={`tool-call-todo-status tool-call-todo-status-${todo.status}`}>{label}</span>
+                      </Show>
+                    </div>
                   </div>
-                </div>
+
               </div>
             )
           }}
