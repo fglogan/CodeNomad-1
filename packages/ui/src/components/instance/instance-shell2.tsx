@@ -56,6 +56,11 @@ import SessionView from "../session/session-view"
 import { formatTokenTotal } from "../../lib/formatters"
 import { sseManager } from "../../lib/sse-manager"
 import { getLogger } from "../../lib/logger"
+import {
+  SESSION_SIDEBAR_EVENT,
+  type SessionSidebarRequestAction,
+  type SessionSidebarRequestDetail,
+} from "../../lib/session-sidebar-events"
 
 const log = getLogger("session")
 
@@ -217,6 +222,17 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     onCleanup(() => window.removeEventListener("resize", handleResize))
   })
 
+  onMount(() => {
+    if (typeof window === "undefined") return
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<SessionSidebarRequestDetail>).detail
+      if (!detail || detail.instanceId !== props.instance.id) return
+      handleSidebarRequest(detail.action)
+    }
+    window.addEventListener(SESSION_SIDEBAR_EVENT, handler)
+    onCleanup(() => window.removeEventListener(SESSION_SIDEBAR_EVENT, handler))
+  })
+
   createEffect(() => {
     if (typeof window === "undefined") return
     window.localStorage.setItem(LEFT_DRAWER_STORAGE_KEY, sessionSidebarWidth().toString())
@@ -321,6 +337,58 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
       (shortcut): shortcut is KeyboardShortcut => Boolean(shortcut),
     ),
   )
+
+  const runAfterDrawerReady = (callback: (() => void) | undefined, attempts = 12) => {
+    if (!callback) return
+    if (leftDrawerContentEl()) {
+      requestAnimationFrame(() => callback())
+      return
+    }
+    if (attempts <= 0) return
+    requestAnimationFrame(() => runAfterDrawerReady(callback, attempts - 1))
+  }
+
+  const ensureLeftDrawerVisible = (callback?: () => void) => {
+    if (leftPinned()) {
+      runAfterDrawerReady(callback)
+      return
+    }
+    if (!leftOpen()) {
+      setLeftOpen(true)
+      measureDrawerHost()
+    }
+    runAfterDrawerReady(callback)
+  }
+
+  const focusAgentSelectorControl = () => {
+    const agentTrigger = leftDrawerContentEl()?.querySelector("[data-agent-selector]") as HTMLElement | null
+    if (!agentTrigger) return
+    agentTrigger.focus()
+    setTimeout(() => agentTrigger.click(), 20)
+  }
+
+  const focusModelSelectorControl = () => {
+    const trigger = leftDrawerContentEl()?.querySelector(
+      "[data-model-selector-control] .selector-trigger",
+    ) as HTMLElement | null
+    if (!trigger) return
+    trigger.focus()
+    setTimeout(() => trigger.click(), 20)
+  }
+
+  const handleSidebarRequest = (action: SessionSidebarRequestAction) => {
+    if (action === "focus-agent-selector") {
+      ensureLeftDrawerVisible(() => focusAgentSelectorControl())
+      return
+    }
+    if (action === "focus-model-selector") {
+      ensureLeftDrawerVisible(() => focusModelSelectorControl())
+      return
+    }
+    if (action === "show-session-list") {
+      ensureLeftDrawerVisible()
+    }
+  }
 
   const handleSessionSelect = (sessionId: string) => {
     setActiveSession(props.instance.id, sessionId)
