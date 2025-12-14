@@ -1,4 +1,4 @@
-import { Component, For, Show, createSignal, createEffect, onCleanup, onMount, createMemo, JSX } from "solid-js"
+import { Component, For, Show, createSignal, createMemo, JSX } from "solid-js"
 import type { Session, SessionStatus } from "../types/session"
 import { getSessionStatus } from "../stores/session-status"
 import { MessageSquare, Info, X, Copy, Trash2, Pencil } from "lucide-solid"
@@ -25,13 +25,7 @@ interface SessionListProps {
   showFooter?: boolean
   headerContent?: JSX.Element
   footerContent?: JSX.Element
-  onWidthChange?: (width: number) => void
 }
-
-const MIN_WIDTH = 200
-const MAX_WIDTH = 520
-const DEFAULT_WIDTH = 360
-const STORAGE_KEY = "opencode-session-sidebar-width-v7"
 
 function formatSessionStatus(status: SessionStatus): string {
   switch (status) {
@@ -63,10 +57,6 @@ function arraysEqual(prev: readonly string[] | undefined, next: readonly string[
 }
 
 const SessionList: Component<SessionListProps> = (props) => {
-  const [sidebarWidth, setSidebarWidth] = createSignal(DEFAULT_WIDTH)
-  const [isResizing, setIsResizing] = createSignal(false)
-  const [startX, setStartX] = createSignal(0)
-  const [startWidth, setStartWidth] = createSignal(DEFAULT_WIDTH)
   const [renameTarget, setRenameTarget] = createSignal<{ id: string; title: string; label: string } | null>(null)
   const [isRenaming, setIsRenaming] = createSignal(false)
   const infoShortcut = keyboardRegistry.get("switch-to-info")
@@ -79,34 +69,6 @@ const SessionList: Component<SessionListProps> = (props) => {
   const selectSession = (sessionId: string) => {
     props.onSelect(sessionId)
   }
-
-
-  let mouseMoveHandler: ((event: MouseEvent) => void) | null = null
-  let mouseUpHandler: (() => void) | null = null
-  let touchMoveHandler: ((event: TouchEvent) => void) | null = null
-  let touchEndHandler: (() => void) | null = null
-
-  onMount(() => {
-    if (typeof window === "undefined") return
-    const saved = window.localStorage.getItem(STORAGE_KEY)
-    if (!saved) return
-
-    const width = Number.parseInt(saved, 10)
-    if (Number.isFinite(width) && width >= MIN_WIDTH && width <= MAX_WIDTH) {
-      setSidebarWidth(width)
-      setStartWidth(width)
-    }
-  })
-
-  createEffect(() => {
-    if (typeof window === "undefined") return
-    const width = sidebarWidth()
-    window.localStorage.setItem(STORAGE_KEY, width.toString())
-  })
-
-  createEffect(() => {
-    props.onWidthChange?.(sidebarWidth())
-  })
  
   const copySessionId = async (event: MouseEvent, sessionId: string) => {
     event.stopPropagation()
@@ -150,7 +112,7 @@ const SessionList: Component<SessionListProps> = (props) => {
   const handleRenameSubmit = async (nextTitle: string) => {
     const target = renameTarget()
     if (!target) return
-
+ 
     setIsRenaming(true)
     try {
       await renameSession(props.instanceId, target.id, nextTitle)
@@ -163,96 +125,7 @@ const SessionList: Component<SessionListProps> = (props) => {
     }
   }
  
-  const clampWidth = (width: number) => Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width))
- 
 
- 
-
-  const removeMouseListeners = () => {
-    if (mouseMoveHandler) {
-      document.removeEventListener("mousemove", mouseMoveHandler)
-      mouseMoveHandler = null
-    }
-    if (mouseUpHandler) {
-      document.removeEventListener("mouseup", mouseUpHandler)
-      mouseUpHandler = null
-    }
-  }
- 
-  const removeTouchListeners = () => {
-    if (touchMoveHandler) {
-      document.removeEventListener("touchmove", touchMoveHandler)
-      touchMoveHandler = null
-    }
-    if (touchEndHandler) {
-      document.removeEventListener("touchend", touchEndHandler)
-      touchEndHandler = null
-    }
-  }
- 
-  const stopResizing = () => {
-    setIsResizing(false)
-    removeMouseListeners()
-    removeTouchListeners()
-  }
- 
-  const handleMouseMove = (event: MouseEvent) => {
-    if (!isResizing()) return
-    const diff = event.clientX - startX()
-    const newWidth = clampWidth(startWidth() + diff)
-    setSidebarWidth(newWidth)
-  }
- 
-  const handleMouseUp = () => {
-    stopResizing()
-  }
- 
-  const handleTouchMove = (event: TouchEvent) => {
-    if (!isResizing()) return
-    const touch = event.touches[0]
-    if (!touch) return
-    const diff = touch.clientX - startX()
-    const newWidth = clampWidth(startWidth() + diff)
-    setSidebarWidth(newWidth)
-  }
- 
-  const handleTouchEnd = () => {
-    stopResizing()
-  }
- 
-  const handleMouseDown = (event: MouseEvent) => {
-    event.preventDefault()
-    setIsResizing(true)
-    setStartX(event.clientX)
-    setStartWidth(sidebarWidth())
- 
-    mouseMoveHandler = handleMouseMove
-    mouseUpHandler = handleMouseUp
- 
-    document.addEventListener("mousemove", handleMouseMove)
-    document.addEventListener("mouseup", handleMouseUp)
-  }
- 
-  const handleTouchStart = (event: TouchEvent) => {
-    event.preventDefault()
-    const touch = event.touches[0]
-    if (!touch) return
-    setIsResizing(true)
-    setStartX(touch.clientX)
-    setStartWidth(sidebarWidth())
- 
-    touchMoveHandler = handleTouchMove
-    touchEndHandler = handleTouchEnd
- 
-    document.addEventListener("touchmove", handleTouchMove)
-    document.addEventListener("touchend", handleTouchEnd)
-  }
- 
-  onCleanup(() => {
-    removeMouseListeners()
-    removeTouchListeners()
-  })
- 
   const SessionRow: Component<{ sessionId: string; canClose?: boolean }> = (rowProps) => {
     const session = () => props.sessions.get(rowProps.sessionId)
     if (!session()) {
@@ -392,14 +265,6 @@ const SessionList: Component<SessionListProps> = (props) => {
     <div
       class="session-list-container bg-surface-secondary border-r border-base flex flex-col w-full"
     >
-      <div
-        class="session-resize-handle"
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
-        role="presentation"
-        aria-hidden="true"
-      />
-
       <Show when={props.showHeader !== false}>
         <div class="session-list-header p-3 border-b border-base">
           {props.headerContent ?? (

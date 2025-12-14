@@ -535,8 +535,16 @@
 }
 
 .session-resize-handle {
-  @apply absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent transition-colors;
+  @apply absolute top-0 w-1 h-full cursor-col-resize bg-transparent transition-colors;
   z-index: 10;
+}
+
+.session-resize-handle--left {
+  right: 0;
+}
+
+.session-resize-handle--right {
+  left: 0;
 }
 
 .session-resize-handle:hover {
@@ -545,7 +553,17 @@
 
 .session-resize-handle::before {
   content: "";
-  @apply absolute top-0 left-0 w-2 h-full -translate-x-1/2;
+  @apply absolute top-0 h-full w-2;
+}
+
+.session-resize-handle--left::before {
+  right: 0;
+  transform: translateX(50%);
+}
+
+.session-resize-handle--right::before {
+  left: 0;
+  transform: translateX(-50%);
 }
 
 .session-list-header {

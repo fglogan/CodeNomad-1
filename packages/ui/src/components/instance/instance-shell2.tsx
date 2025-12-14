@@ -70,16 +70,22 @@ const DEFAULT_SESSION_SIDEBAR_WIDTH = 280
 const MIN_SESSION_SIDEBAR_WIDTH = 220
 const MAX_SESSION_SIDEBAR_WIDTH = 360
 const RIGHT_DRAWER_WIDTH = 260
+const MIN_RIGHT_DRAWER_WIDTH = 200
+const MAX_RIGHT_DRAWER_WIDTH = 380
 const SESSION_CACHE_LIMIT = 2
 const APP_BAR_HEIGHT = 56
+const LEFT_DRAWER_STORAGE_KEY = "opencode-session-sidebar-width-v8"
+const RIGHT_DRAWER_STORAGE_KEY = "opencode-session-right-drawer-width-v1"
 
 
 type LayoutMode = "desktop" | "tablet" | "phone"
 
 const clampWidth = (value: number) => Math.min(MAX_SESSION_SIDEBAR_WIDTH, Math.max(MIN_SESSION_SIDEBAR_WIDTH, value))
+const clampRightWidth = (value: number) => Math.min(MAX_RIGHT_DRAWER_WIDTH, Math.max(MIN_RIGHT_DRAWER_WIDTH, value))
 
 const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const [sessionSidebarWidth, setSessionSidebarWidth] = createSignal(DEFAULT_SESSION_SIDEBAR_WIDTH)
+  const [rightDrawerWidth, setRightDrawerWidth] = createSignal(RIGHT_DRAWER_WIDTH)
   const [leftPinned, setLeftPinned] = createSignal(true)
   const [leftOpen, setLeftOpen] = createSignal(true)
   const [rightPinned, setRightPinned] = createSignal(true)
@@ -93,6 +99,9 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const [rightDrawerContentEl, setRightDrawerContentEl] = createSignal<HTMLElement | null>(null)
   const [leftToggleButtonEl, setLeftToggleButtonEl] = createSignal<HTMLElement | null>(null)
   const [rightToggleButtonEl, setRightToggleButtonEl] = createSignal<HTMLElement | null>(null)
+  const [activeResizeSide, setActiveResizeSide] = createSignal<"left" | "right" | null>(null)
+  const [resizeStartX, setResizeStartX] = createSignal(0)
+  const [resizeStartWidth, setResizeStartWidth] = createSignal(0)
 
   const messageStore = createMemo(() => messageStoreBus.getOrCreate(props.instance.id))
 
@@ -145,6 +154,23 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
 
   onMount(() => {
     if (typeof window === "undefined") return
+
+    const savedLeft = window.localStorage.getItem(LEFT_DRAWER_STORAGE_KEY)
+    if (savedLeft) {
+      const parsed = Number.parseInt(savedLeft, 10)
+      if (Number.isFinite(parsed)) {
+        setSessionSidebarWidth(clampWidth(parsed))
+      }
+    }
+
+    const savedRight = window.localStorage.getItem(RIGHT_DRAWER_STORAGE_KEY)
+    if (savedRight) {
+      const parsed = Number.parseInt(savedRight, 10)
+      if (Number.isFinite(parsed)) {
+        setRightDrawerWidth(clampRightWidth(parsed))
+      }
+    }
+
     const handleResize = () => {
       const width = clampWidth(window.innerWidth * 0.3)
       setSessionSidebarWidth((current) => clampWidth(current || width))
@@ -154,6 +180,16 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     handleResize()
     window.addEventListener("resize", handleResize)
     onCleanup(() => window.removeEventListener("resize", handleResize))
+  })
+
+  createEffect(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.setItem(LEFT_DRAWER_STORAGE_KEY, sessionSidebarWidth().toString())
+  })
+
+  createEffect(() => {
+    if (typeof window === "undefined") return
+    window.localStorage.setItem(RIGHT_DRAWER_STORAGE_KEY, rightDrawerWidth().toString())
   })
 
   createEffect(() => {
@@ -231,9 +267,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     setActiveSession(props.instance.id, sessionId)
   }
 
-  const handleSidebarWidthChange = (nextWidth: number) => {
-    setSessionSidebarWidth(clampWidth(nextWidth))
-  }
 
   const evictSession = (sessionId: string) => {
     if (!sessionId) return
@@ -327,7 +360,89 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     return `calc(100% - ${floatingTop()}px)`
   }
 
+  const scheduleDrawerMeasure = () => {
+    if (typeof window === "undefined") {
+      measureDrawerHost()
+      return
+    }
+    requestAnimationFrame(() => measureDrawerHost())
+  }
+
+  const applyDrawerWidth = (side: "left" | "right", width: number) => {
+    if (side === "left") {
+      setSessionSidebarWidth(width)
+    } else {
+      setRightDrawerWidth(width)
+    }
+    scheduleDrawerMeasure()
+  }
+
+  const handleDrawerPointerMove = (clientX: number) => {
+    const side = activeResizeSide()
+    if (!side) return
+    const startWidth = resizeStartWidth()
+    const clamp = side === "left" ? clampWidth : clampRightWidth
+    const delta = side === "left" ? clientX - resizeStartX() : resizeStartX() - clientX
+    const nextWidth = clamp(startWidth + delta)
+    applyDrawerWidth(side, nextWidth)
+  }
+
+  function stopDrawerResize() {
+    setActiveResizeSide(null)
+    document.removeEventListener("mousemove", drawerMouseMove)
+    document.removeEventListener("mouseup", drawerMouseUp)
+    document.removeEventListener("touchmove", drawerTouchMove)
+    document.removeEventListener("touchend", drawerTouchEnd)
+  }
+
+  function drawerMouseMove(event: MouseEvent) {
+    event.preventDefault()
+    handleDrawerPointerMove(event.clientX)
+  }
+
+  function drawerMouseUp() {
+    stopDrawerResize()
+  }
+
+  function drawerTouchMove(event: TouchEvent) {
+    const touch = event.touches[0]
+    if (!touch) return
+    event.preventDefault()
+    handleDrawerPointerMove(touch.clientX)
+  }
+
+  function drawerTouchEnd() {
+    stopDrawerResize()
+  }
+
+  const startDrawerResize = (side: "left" | "right", clientX: number) => {
+    setActiveResizeSide(side)
+    setResizeStartX(clientX)
+    setResizeStartWidth(side === "left" ? sessionSidebarWidth() : rightDrawerWidth())
+    document.addEventListener("mousemove", drawerMouseMove)
+    document.addEventListener("mouseup", drawerMouseUp)
+    document.addEventListener("touchmove", drawerTouchMove, { passive: false })
+    document.addEventListener("touchend", drawerTouchEnd)
+  }
+
+  const handleDrawerResizeMouseDown = (side: "left" | "right") => (event: MouseEvent) => {
+    event.preventDefault()
+    startDrawerResize(side, event.clientX)
+  }
+
+  const handleDrawerResizeTouchStart = (side: "left" | "right") => (event: TouchEvent) => {
+    const touch = event.touches[0]
+    if (!touch) return
+    event.preventDefault()
+    startDrawerResize(side, touch.clientX)
+  }
+
+  onCleanup(() => {
+    stopDrawerResize()
+  })
+
   type DrawerViewState = "pinned" | "floating-open" | "floating-closed"
+ 
 
   const leftDrawerState = createMemo<DrawerViewState>(() => {
     if (leftPinned()) return "pinned"
@@ -519,7 +634,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
           }}
           showHeader={false}
           showFooter={false}
-          onWidthChange={handleSidebarWidthChange}
         />
 
         <Divider />
@@ -593,8 +707,16 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
             backgroundColor: "var(--surface-secondary)",
             height: "100%",
             minHeight: 0,
+            position: "relative",
           }}
         >
+          <div
+            class="session-resize-handle session-resize-handle--left"
+            onMouseDown={handleDrawerResizeMouseDown("left")}
+            onTouchStart={handleDrawerResizeTouchStart("left")}
+            role="presentation"
+            aria-hidden="true"
+          />
           <LeftDrawerContent />
         </Box>
       )
@@ -639,14 +761,22 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
         <Box
           class="session-right-panel"
           sx={{
-            width: RIGHT_DRAWER_WIDTH,
+            width: `${rightDrawerWidth()}px`,
             flexShrink: 0,
             borderLeft: "1px solid var(--border-base)",
             backgroundColor: "var(--surface-secondary)",
             height: "100%",
             minHeight: 0,
+            position: "relative",
           }}
         >
+          <div
+            class="session-resize-handle session-resize-handle--right"
+            onMouseDown={handleDrawerResizeMouseDown("right")}
+            onTouchStart={handleDrawerResizeTouchStart("right")}
+            role="presentation"
+            aria-hidden="true"
+          />
           <RightDrawerContent />
         </Box>
       )
@@ -662,7 +792,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
         ModalProps={modalProps}
         sx={{
           "& .MuiDrawer-paper": {
-            width: isPhoneLayout() ? "100vw" : `${RIGHT_DRAWER_WIDTH}px`,
+            width: isPhoneLayout() ? "100vw" : `${rightDrawerWidth()}px`,
             boxSizing: "border-box",
             borderLeft: isPhoneLayout() ? "none" : "1px solid var(--border-base)",
             backgroundColor: "var(--surface-secondary)",
