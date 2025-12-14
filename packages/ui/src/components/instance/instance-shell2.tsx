@@ -10,6 +10,8 @@ import {
   type Accessor,
   type Component,
 } from "solid-js"
+import { Accordion } from "@kobalte/core"
+import { ChevronDown } from "lucide-solid"
 import AppBar from "@suid/material/AppBar"
 import Box from "@suid/material/Box"
 import Divider from "@suid/material/Divider"
@@ -42,6 +44,7 @@ import SessionList from "../session-list"
 import KeyboardHint from "../keyboard-hint"
 import InstanceWelcomeView from "../instance-welcome-view"
 import InfoView from "../info-view"
+import InstanceServiceStatus from "../instance-service-status"
 import AgentSelector from "../agent-selector"
 import ModelSelector from "../model-selector"
 import CommandPalette from "../command-palette"
@@ -118,6 +121,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const [activeResizeSide, setActiveResizeSide] = createSignal<"left" | "right" | null>(null)
   const [resizeStartX, setResizeStartX] = createSignal(0)
   const [resizeStartWidth, setResizeStartWidth] = createSignal(0)
+  const [rightPanelExpandedItems, setRightPanelExpandedItems] = createSignal<string[]>(["lsp", "mcp"])
 
   const messageStore = createMemo(() => messageStoreBus.getOrCreate(props.instance.id))
 
@@ -704,28 +708,94 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     </div>
   )
 
-  const RightDrawerContent = () => (
-    <div class="flex flex-col h-full" ref={setRightDrawerContentEl}>
-      <div class="flex items-center justify-between px-4 py-3 border-b border-base">
-        <Typography variant="subtitle2" class="uppercase tracking-wide text-xs font-semibold">
-          Side Panel
-        </Typography>
-        <div class="flex items-center gap-2">
-          <Show when={!isPhoneLayout()}>
-            <IconButton
-              size="small"
-              color="inherit"
-              aria-label={rightPinned() ? "Unpin right drawer" : "Pin right drawer"}
-              onClick={() => (rightPinned() ? unpinRightDrawer() : pinRightDrawer())}
-            >
-              {rightPinned() ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
-            </IconButton>
-          </Show>
+  const RightDrawerContent = () => {
+    const sections = [
+      {
+        id: "lsp",
+        label: "LSP Servers",
+        content: (
+          <InstanceServiceStatus
+            instanceId={props.instance.id}
+            initialInstance={props.instance}
+            sections={["lsp"]}
+            showSectionHeadings={false}
+            class="space-y-2"
+          />
+        ),
+      },
+      {
+        id: "mcp",
+        label: "MCP Servers",
+        content: (
+          <InstanceServiceStatus
+            instanceId={props.instance.id}
+            initialInstance={props.instance}
+            sections={["mcp"]}
+            showSectionHeadings={false}
+            class="space-y-2"
+          />
+        ),
+      },
+    ]
+
+    const handleAccordionChange = (values: string[]) => {
+      setRightPanelExpandedItems(values)
+    }
+
+    const isSectionExpanded = (id: string) => rightPanelExpandedItems().includes(id)
+
+    return (
+      <div class="flex flex-col h-full" ref={setRightDrawerContentEl}>
+        <div class="flex items-center justify-between px-4 py-2 border-b border-base">
+          <Typography variant="subtitle2" class="uppercase tracking-wide text-xs font-semibold">
+            Control Panel
+          </Typography>
+          <div class="flex items-center gap-2">
+            <Show when={!isPhoneLayout()}>
+              <IconButton
+                size="small"
+                color="inherit"
+                aria-label={rightPinned() ? "Unpin right drawer" : "Pin right drawer"}
+                onClick={() => (rightPinned() ? unpinRightDrawer() : pinRightDrawer())}
+              >
+                {rightPinned() ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
+              </IconButton>
+            </Show>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+          <Accordion.Root
+            class="flex flex-col"
+            collapsible
+            multiple
+            value={rightPanelExpandedItems()}
+            onChange={handleAccordionChange}
+          >
+            <For each={sections}>
+              {(section) => (
+                <Accordion.Item
+                  value={section.id}
+                  class="w-full border border-base bg-surface-secondary text-primary"
+                >
+                  <Accordion.Header>
+                    <Accordion.Trigger class="w-full flex items-center justify-between gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide">
+                      <span>{section.label}</span>
+                      <ChevronDown
+                        class={`h-4 w-4 transition-transform duration-150 ${isSectionExpanded(section.id) ? "rotate-180" : ""}`}
+                      />
+                    </Accordion.Trigger>
+                  </Accordion.Header>
+                  <Accordion.Content class="w-full px-3 pb-3 text-sm text-primary">
+                    {section.content}
+                  </Accordion.Content>
+                </Accordion.Item>
+              )}
+            </For>
+          </Accordion.Root>
         </div>
       </div>
-      <div class="flex-1" />
-    </div>
-  )
+    )
+  }
 
   const renderLeftPanel = () => {
     if (leftPinned()) {
