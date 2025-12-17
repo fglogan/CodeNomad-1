@@ -9,6 +9,7 @@ import { clearWorkspaceSearchCache } from "../filesystem/search-cache"
 import { WorkspaceDescriptor, WorkspaceFileResponse, FileSystemEntry } from "../api-types"
 import { WorkspaceRuntime } from "./runtime"
 import { Logger } from "../logger"
+import { getOpencodeConfigDir } from "../opencode-config"
 
 interface WorkspaceManagerOptions {
   rootDir: string
@@ -23,9 +24,11 @@ interface WorkspaceRecord extends WorkspaceDescriptor {}
 export class WorkspaceManager {
   private readonly workspaces = new Map<string, WorkspaceRecord>()
   private readonly runtime: WorkspaceRuntime
+  private readonly opencodeConfigDir: string
 
   constructor(private readonly options: WorkspaceManagerOptions) {
     this.runtime = new WorkspaceRuntime(this.options.eventBus, this.options.logger)
+    this.opencodeConfigDir = getOpencodeConfigDir()
   }
 
   list(): WorkspaceDescriptor[] {
@@ -97,7 +100,12 @@ export class WorkspaceManager {
 
     this.options.eventBus.publish({ type: "workspace.created", workspace: descriptor })
 
-    const environment = this.options.configStore.get().preferences.environmentVariables ?? {}
+    const preferences = this.options.configStore.get().preferences ?? {}
+    const userEnvironment = preferences.environmentVariables ?? {}
+    const environment = {
+      ...userEnvironment,
+      OPENCODE_CONFIG_DIR: this.opencodeConfigDir,
+    }
 
     try {
       const { pid, port } = await this.runtime.launch({
