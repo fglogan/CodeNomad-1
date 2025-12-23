@@ -25,6 +25,7 @@ export interface InstanceMetadata {
   project?: ProjectInfo | null
   mcpStatus?: RawMcpStatus | null
   lspStatus?: LspStatus[] | null
+  plugins?: string[] | null
   version?: string
 }
 

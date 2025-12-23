@@ -128,7 +128,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const [activeResizeSide, setActiveResizeSide] = createSignal<"left" | "right" | null>(null)
   const [resizeStartX, setResizeStartX] = createSignal(0)
   const [resizeStartWidth, setResizeStartWidth] = createSignal(0)
-  const [rightPanelExpandedItems, setRightPanelExpandedItems] = createSignal<string[]>(["lsp", "mcp"])
+  const [rightPanelExpandedItems, setRightPanelExpandedItems] = createSignal<string[]>(["plan", "mcp", "lsp", "plugins"])
 
   const messageStore = createMemo(() => messageStoreBus.getOrCreate(props.instance.id))
 
@@ -855,16 +855,9 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
 
     const sections = [
       {
-        id: "lsp",
-        label: "LSP Servers",
-        render: () => (
-          <InstanceServiceStatus
-            initialInstance={props.instance}
-            sections={["lsp"]}
-            showSectionHeadings={false}
-            class="space-y-2"
-          />
-        ),
+        id: "plan",
+        label: "Plan",
+        render: renderPlanSectionContent,
       },
       {
         id: "mcp",
@@ -879,9 +872,28 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
         ),
       },
       {
-        id: "plan",
-        label: "Plan",
-        render: renderPlanSectionContent,
+        id: "lsp",
+        label: "LSP Servers",
+        render: () => (
+          <InstanceServiceStatus
+            initialInstance={props.instance}
+            sections={["lsp"]}
+            showSectionHeadings={false}
+            class="space-y-2"
+          />
+        ),
+      },
+      {
+        id: "plugins",
+        label: "Plugins",
+        render: () => (
+          <InstanceServiceStatus
+            initialInstance={props.instance}
+            sections={["plugins"]}
+            showSectionHeadings={false}
+            class="space-y-2"
+          />
+        ),
       },
     ]
 
