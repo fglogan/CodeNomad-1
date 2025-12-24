@@ -146,6 +146,7 @@ export class WorkspaceRuntime {
             const portMatch = line.match(/opencode server listening on http:\/\/.+:(\d+)/i)
             if (portMatch) {
               portFound = true
+              stopWarningTimer()
               child.removeListener("error", handleError)
               const port = parseInt(portMatch[1], 10)
               this.logger.info({ workspaceId: options.workspaceId, port }, "Workspace runtime allocated port")
