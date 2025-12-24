@@ -26,15 +26,6 @@ export async function CodeNomadPlugin() {
       const opencodeEvent = input?.event
       if (!opencodeEvent || typeof opencodeEvent !== "object") return
 
-      if (opencodeEvent.type === "session.idle") {
-        const sessionID = (opencodeEvent as any).properties?.sessionID
-        void client.postEvent({
-          type: "opencode.session.idle",
-          properties: {
-            sessionID,
-          },
-        }).catch(() => {})
-      }
     },
   }
 }
