@@ -16,6 +16,7 @@ import type {
 } from "@opencode-ai/sdk"
 import { serverEvents } from "./server-events"
 import type {
+  BackgroundProcess,
   InstanceStreamEvent,
   InstanceStreamStatus,
   WorkspaceEventPayload,
@@ -37,6 +38,20 @@ interface TuiToastEvent {
   }
 }
 
+interface BackgroundProcessUpdatedEvent {
+  type: "background.process.updated"
+  properties: {
+    process: BackgroundProcess
+  }
+}
+
+interface BackgroundProcessRemovedEvent {
+  type: "background.process.removed"
+  properties: {
+    processId: string
+  }
+}
+
 type SSEEvent =
   | MessageUpdateEvent
   | MessageRemovedEvent
@@ -50,6 +65,8 @@ type SSEEvent =
   | EventPermissionReplied
   | EventLspUpdated
   | TuiToastEvent
+  | BackgroundProcessUpdatedEvent
+  | BackgroundProcessRemovedEvent
   | { type: string; properties?: Record<string, unknown> }
 
 type ConnectionStatus = InstanceStreamStatus
@@ -126,6 +143,12 @@ class SSEManager {
       case "lsp.updated":
         this.onLspUpdated?.(instanceId, event as EventLspUpdated)
         break
+      case "background.process.updated":
+        this.onBackgroundProcessUpdated?.(instanceId, event as BackgroundProcessUpdatedEvent)
+        break
+      case "background.process.removed":
+        this.onBackgroundProcessRemoved?.(instanceId, event as BackgroundProcessRemovedEvent)
+        break
       default:
         log.warn("Unknown SSE event type", { type: event.type })
     }
@@ -151,6 +174,8 @@ class SSEManager {
   onPermissionUpdated?: (instanceId: string, event: EventPermissionUpdated) => void
   onPermissionReplied?: (instanceId: string, event: EventPermissionReplied) => void
   onLspUpdated?: (instanceId: string, event: EventLspUpdated) => void
+  onBackgroundProcessUpdated?: (instanceId: string, event: BackgroundProcessUpdatedEvent) => void
+  onBackgroundProcessRemoved?: (instanceId: string, event: BackgroundProcessRemovedEvent) => void
   onConnectionLost?: (instanceId: string, reason: string) => void | Promise<void>
 
   getStatus(instanceId: string): ConnectionStatus | null {

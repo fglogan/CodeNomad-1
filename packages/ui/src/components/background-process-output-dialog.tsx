@@ -1,0 +1,101 @@
+import { Dialog } from "@kobalte/core/dialog"
+import { Show, createEffect, createSignal, onCleanup } from "solid-js"
+import type { BackgroundProcess } from "../../../server/src/api-types"
+import { buildBackgroundProcessStreamUrl, serverApi } from "../lib/api-client"
+
+interface BackgroundProcessOutputDialogProps {
+  open: boolean
+  instanceId: string
+  process: BackgroundProcess | null
+  onClose: () => void
+}
+
+export function BackgroundProcessOutputDialog(props: BackgroundProcessOutputDialogProps) {
+  const [output, setOutput] = createSignal("")
+  const [truncated, setTruncated] = createSignal(false)
+  const [loading, setLoading] = createSignal(false)
+
+  createEffect(() => {
+    const process = props.process
+    if (!props.open || !process) {
+      return
+    }
+
+    let eventSource: EventSource | null = null
+    let active = true
+
+    setLoading(true)
+    serverApi
+      .fetchBackgroundProcessOutput(props.instanceId, process.id, { method: "full" })
+      .then((response) => {
+        if (!active) return
+        setOutput(response.content)
+        setTruncated(response.truncated)
+      })
+      .catch(() => {
+        if (!active) return
+        setOutput("Failed to load output.")
+      })
+      .finally(() => {
+        if (!active) return
+        setLoading(false)
+      })
+
+    eventSource = new EventSource(buildBackgroundProcessStreamUrl(props.instanceId, process.id))
+    eventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as { type?: string; content?: string }
+        if (payload?.type === "chunk" && typeof payload.content === "string") {
+          setOutput((prev) => `${prev}${payload.content}`)
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    onCleanup(() => {
+      active = false
+      eventSource?.close()
+    })
+  })
+
+  return (
+    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()} modal>
+      <Dialog.Portal>
+        <Dialog.Overlay class="modal-overlay" />
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <Dialog.Content class="modal-surface w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-base">
+            <div class="flex flex-col">
+              <Dialog.Title class="text-lg font-semibold text-primary">Background Output</Dialog.Title>
+              <Show when={props.process}>
+                <span class="text-xs text-secondary">
+                  {props.process?.title} · {props.process?.id}
+                </span>
+                <span class="text-xs text-secondary mt-1 break-words">{props.process?.command}</span>
+              </Show>
+            </div>
+
+              <button type="button" class="button-tertiary" onClick={props.onClose}>
+                Close
+              </button>
+            </div>
+            <div class="flex-1 overflow-auto p-6">
+              <Show when={loading()}>
+                <p class="text-xs text-secondary">Loading output...</p>
+              </Show>
+              <Show when={!loading()}>
+                <Show when={truncated()}>
+                  <p class="text-xs text-secondary mb-2">Output truncated for display.</p>
+                </Show>
+                <pre class="text-xs whitespace-pre-wrap break-words text-primary bg-surface-secondary border border-base rounded-md p-4">
+                  {output()}
+                </pre>
+              </Show>
+            </div>
+          </Dialog.Content>
+        </div>
+      </Dialog.Portal>
+    </Dialog>
+  )
+}
