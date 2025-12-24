@@ -1,8 +1,10 @@
 import { createCodeNomadClient, getCodeNomadConfig } from "./lib/client"
+import { createBackgroundProcessTools } from "./lib/background-process"
 
 export async function CodeNomadPlugin() {
   const config = getCodeNomadConfig()
   const client = createCodeNomadClient(config)
+  const backgroundProcessTools = createBackgroundProcessTools(config)
 
   await client.startEvents((event) => {
     if (event.type === "codenomad.ping") {
@@ -17,6 +19,9 @@ export async function CodeNomadPlugin() {
   })
 
   return {
+    tool: {
+      ...backgroundProcessTools,
+    },
     async event(input: { event: any }) {
       const opencodeEvent = input?.event
       if (!opencodeEvent || typeof opencodeEvent !== "object") return
