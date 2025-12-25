@@ -261,6 +261,22 @@ export function useCommands(options: UseCommandsOptions) {
       },
     })
 
+    function escapeCss(value: string) {
+      if (typeof CSS !== "undefined" && typeof (CSS as any).escape === "function") {
+        return (CSS as any).escape(value)
+      }
+      return value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+    }
+
+    function findVisiblePromptTextarea(sessionId?: string): HTMLTextAreaElement | null {
+      if (typeof document === "undefined") return null
+      const base = ".session-cache-pane[aria-hidden=\"false\"]"
+      const selector = sessionId
+        ? `${base}[data-session-id=\"${escapeCss(sessionId)}\"] .prompt-input`
+        : `${base} .prompt-input`
+      return document.querySelector(selector) as HTMLTextAreaElement | null
+    }
+
     commandRegistry.register({
       id: "undo",
       label: "Undo Last Message",
@@ -327,7 +343,7 @@ export function useCommands(options: UseCommandsOptions) {
           }
 
           if (restoredText) {
-            const textarea = document.querySelector(".prompt-input") as HTMLTextAreaElement
+            const textarea = findVisiblePromptTextarea(sessionId)
             if (textarea) {
               textarea.value = restoredText
               textarea.dispatchEvent(new Event("input", { bubbles: true }))
@@ -381,7 +397,7 @@ export function useCommands(options: UseCommandsOptions) {
       keywords: ["clear", "reset"],
       shortcut: { key: "K", meta: true },
       action: () => {
-        const textarea = document.querySelector(".prompt-input") as HTMLTextAreaElement
+        const textarea = findVisiblePromptTextarea()
         if (textarea) textarea.value = ""
       },
     })

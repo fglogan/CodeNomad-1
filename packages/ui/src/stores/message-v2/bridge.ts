@@ -143,6 +143,18 @@ export function removePermissionV2(instanceId: string, permissionId: string): vo
   store.removePermission(permissionId)
 }
 
+export function removeMessageV2(instanceId: string, messageId: string): void {
+  if (!messageId) return
+  const store = messageStoreBus.getOrCreate(instanceId)
+  store.removeMessage(messageId)
+}
+
+export function removeMessagePartV2(instanceId: string, messageId: string, partId: string): void {
+  if (!messageId || !partId) return
+  const store = messageStoreBus.getOrCreate(instanceId)
+  store.removeMessagePart(messageId, partId)
+}
+
 export function ensureSessionMetadataV2(instanceId: string, session: Session | null | undefined): void {
   if (!session) return
   const store = messageStoreBus.getOrCreate(instanceId)

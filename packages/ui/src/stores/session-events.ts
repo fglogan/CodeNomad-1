@@ -31,6 +31,8 @@ import {
   replaceMessageIdV2,
   upsertMessageInfoV2,
   upsertPermissionV2,
+  removeMessagePartV2,
+  removeMessageV2,
   removePermissionV2,
   setSessionRevertV2,
 } from "./message-v2/bridge"
@@ -305,19 +307,21 @@ function handleSessionError(_instanceId: string, event: EventSessionError): void
 }
 
 function handleMessageRemoved(instanceId: string, event: MessageRemovedEvent): void {
-  const sessionID = event.properties?.sessionID
-  if (!sessionID) return
+  const { sessionID, messageID } = event.properties
+  if (!sessionID || !messageID) return
 
-  log.info(`[SSE] Message removed from session ${sessionID}, reloading messages`)
-  loadMessages(instanceId, sessionID, true).catch((error) => log.error("Failed to reload messages after removal", error))
+  log.info(`[SSE] Message removed from session ${sessionID}`, { messageID })
+  removeMessageV2(instanceId, messageID)
+  updateSessionInfo(instanceId, sessionID)
 }
 
 function handleMessagePartRemoved(instanceId: string, event: MessagePartRemovedEvent): void {
-  const sessionID = event.properties?.sessionID
-  if (!sessionID) return
+  const { sessionID, messageID, partID } = event.properties
+  if (!sessionID || !messageID || !partID) return
 
-  log.info(`[SSE] Message part removed from session ${sessionID}, reloading messages`)
-  loadMessages(instanceId, sessionID, true).catch((error) => log.error("Failed to reload messages after part removal", error))
+  log.info(`[SSE] Message part removed from session ${sessionID}`, { messageID, partID })
+  removeMessagePartV2(instanceId, messageID, partID)
+  updateSessionInfo(instanceId, sessionID)
 }
 
 function handleTuiToast(_instanceId: string, event: TuiToastEvent): void {
