@@ -306,9 +306,11 @@ export class WorkspaceManager {
     }
 
     const latestOutput = params.getLastOutput().trim()
-    const outputDetails = latestOutput ? ` Last output: ${latestOutput}` : ""
+    if (latestOutput) {
+      throw new Error(latestOutput)
+    }
     const reason = probeResult.reason ?? "Health check failed"
-    throw new Error(`Workspace ${params.workspaceId} failed health check: ${reason}.${outputDetails}`)
+    throw new Error(`Workspace ${params.workspaceId} failed health check: ${reason}.`)
   }
 
   private async probeInstance(workspaceId: string, port: number): Promise<{ ok: boolean; reason?: string }> {

@@ -40,7 +40,23 @@ export class WorkspaceRuntime {
     const exitPromise = new Promise<ProcessExitInfo>((resolveExit) => {
       exitResolve = resolveExit
     })
-    let lastOutput = ""
+
+    // Store recent output for debugging - keep last 50 lines from each stream
+    const MAX_OUTPUT_LINES = 50
+    const recentStdout: string[] = []
+    const recentStderr: string[] = []
+    const getLastOutput = () => {
+      const combined: string[] = []
+      if (recentStderr.length > 0) {
+        combined.push("Error Stream")
+        combined.push(...recentStderr.slice(-10))
+      }
+      if (recentStdout.length > 0) {
+        combined.push("Output Stream")
+        combined.push(...recentStdout.slice(-10))
+      }
+      return combined.join("\n")
+    }
 
     return new Promise((resolve, reject) => {
       const commandLine = [options.binaryPath, ...args].join(" ")
@@ -108,7 +124,8 @@ export class WorkspaceRuntime {
           exitResolve = null
         }
         if (!portFound) {
-          const reason = stderrBuffer || `Process exited with code ${code}`
+          const recentOutput = getLastOutput().trim()
+          const reason = recentOutput || stderrBuffer || `Process exited with code ${code}`
           reject(new Error(reason))
         } else {
           options.onExit?.(exitInfo)
@@ -139,7 +156,12 @@ export class WorkspaceRuntime {
         for (const line of lines) {
           const trimmed = line.trim()
           if (!trimmed) continue
-          lastOutput = trimmed
+
+          recentStdout.push(trimmed)
+          if (recentStdout.length > MAX_OUTPUT_LINES) {
+            recentStdout.shift()
+          }
+
           this.emitLog(options.workspaceId, "info", line)
 
           if (!portFound) {
@@ -150,7 +172,6 @@ export class WorkspaceRuntime {
               child.removeListener("error", handleError)
               const port = parseInt(portMatch[1], 10)
               this.logger.info({ workspaceId: options.workspaceId, port }, "Workspace runtime allocated port")
-              const getLastOutput = () => lastOutput.trim()
               resolve({ pid: child.pid!, port, exitPromise, getLastOutput })
             }
           }
@@ -166,7 +187,12 @@ export class WorkspaceRuntime {
         for (const line of lines) {
           const trimmed = line.trim()
           if (!trimmed) continue
-          lastOutput = `[stderr] ${trimmed}`
+
+          recentStderr.push(trimmed)
+          if (recentStderr.length > MAX_OUTPUT_LINES) {
+            recentStderr.shift()
+          }
+
           this.emitLog(options.workspaceId, "error", line)
         }
       })
