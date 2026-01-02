@@ -35,7 +35,10 @@ export function Markdown(props: MarkdownProps) {
     const dark = Boolean(props.isDark)
     const themeKey = dark ? "dark" : "light"
     const highlightEnabled = !props.disableHighlight
-    const partId = typeof part.id === "string" && part.id.length > 0 ? part.id : "__anonymous__"
+    const partId = typeof part.id === "string" && part.id.length > 0 ? part.id : ""
+    if (!partId) {
+      throw new Error("Markdown rendering requires a part id")
+    }
     const versionKey = typeof part.version === "number" ? String(part.version) : ""
     const cacheKey = makeMarkdownCacheKey(partId, themeKey, highlightEnabled, versionKey)
 

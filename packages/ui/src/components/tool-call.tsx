@@ -222,7 +222,13 @@ export default function ToolCall(props: ToolCallProps) {
   const { isDark } = useTheme()
   const toolCallMemo = createMemo(() => props.toolCall)
   const toolName = createMemo(() => toolCallMemo()?.tool || "")
-  const toolCallIdentifier = createMemo(() => toolCallMemo()?.callID || props.toolCallId || toolCallMemo()?.id || "")
+  const toolCallIdentifier = createMemo(() => {
+    const partId = toolCallMemo()?.id
+    if (!partId) {
+      throw new Error("Tool call requires a part id")
+    }
+    return partId
+  })
   const toolState = createMemo(() => toolCallMemo()?.state)
 
   const cacheContext = createMemo(() => ({
@@ -695,7 +701,11 @@ export default function ToolCall(props: ToolCallProps) {
       )
     }
 
-    const markdownPart: TextPart = { type: "text", text: options.content, version: props.partVersion }
+    const partId = toolCallMemo()?.id
+    if (!partId) {
+      throw new Error("Tool call markdown requires a part id")
+    }
+    const markdownPart: TextPart = { id: partId, type: "text", text: options.content, version: props.partVersion }
     const cached = markdownCache.get<RenderCache>()
     if (cached) {
       markdownPart.renderCache = cached

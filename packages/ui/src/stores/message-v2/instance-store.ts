@@ -51,16 +51,8 @@ function ensurePartId(messageId: string, part: ClientPart, index: number): strin
     return part.id
   }
 
-  const toolCallId =
-    (part as any).callID ??
-    (part as any).callId ??
-    (part as any).toolCallID ??
-    (part as any).toolCallId ??
-    undefined
-
-  if (part.type === "tool" && typeof toolCallId === "string" && toolCallId.length > 0) {
-    part.id = toolCallId
-    return toolCallId
+  if (part.type === "tool") {
+    throw new Error("Tool part missing id")
   }
 
   const fallbackId = `${messageId}-part-${index}`
@@ -504,6 +496,50 @@ export function createInstanceMessageStore(instanceId: string, hooks?: MessageSt
     })
   }
 
+  function rebindPermissionForPart(messageId: string, partId: string, part: ClientPart) {
+    if (!messageId || !partId || part.type !== "tool") {
+      return
+    }
+
+    const toolCallId =
+      (part as any).callID ??
+      (part as any).callId ??
+      (part as any).toolCallID ??
+      (part as any).toolCallId ??
+      undefined
+    if (!toolCallId) {
+      return
+    }
+
+    setState(
+      "permissions",
+      "byMessage",
+      messageId,
+      produce((draft) => {
+        if (!draft) return
+        const existing = draft[partId]
+        for (const [key, entry] of Object.entries(draft)) {
+          if (!entry || entry.partId) continue
+          const permissionCallId =
+            (entry.permission as any).callID ??
+            (entry.permission as any).callId ??
+            (entry.permission as any).toolCallID ??
+            (entry.permission as any).toolCallId ??
+            (entry.permission as any).metadata?.callID ??
+            (entry.permission as any).metadata?.callId ??
+            undefined
+          if (permissionCallId !== toolCallId) continue
+          if (!existing || existing.permission.id === entry.permission.id) {
+            entry.partId = partId
+            draft[partId] = entry
+            delete draft[key]
+          }
+          break
+        }
+      }),
+    )
+  }
+
   function applyPartUpdate(input: PartUpdateInput) {
     const message = state.messages[input.messageId]
     if (!message) {
@@ -534,6 +570,8 @@ export function createInstanceMessageStore(instanceId: string, hooks?: MessageSt
         }
       }),
     )
+
+    rebindPermissionForPart(input.messageId, partId, cloned)
 
     if (isCompletedTodoPart(cloned)) {
       recordLatestTodoSnapshot(message.sessionId, {
@@ -740,7 +778,7 @@ export function createInstanceMessageStore(instanceId: string, hooks?: MessageSt
 
   function upsertPermission(entry: PermissionEntry) {
     const messageKey = entry.messageId ?? "__global__"
-    const partKey = entry.partId ?? "__global__"
+    const partKey = entry.partId ?? entry.permission?.id ?? "__global__"
 
     setState(
       "permissions",

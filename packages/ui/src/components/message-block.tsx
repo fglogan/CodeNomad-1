@@ -453,7 +453,7 @@ export default function MessageBlock(props: MessageBlockProps) {
                         </div>
                         <ToolCall
                           toolCall={toolItem.toolPart}
-                          toolCallId={toolItem.key}
+                          toolCallId={toolItem.toolPart.id}
                           messageId={toolItem.messageId}
                           messageVersion={toolItem.messageVersion}
                           partVersion={toolItem.partVersion}

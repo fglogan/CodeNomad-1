@@ -114,25 +114,60 @@ function extractPermissionMessageId(permission: Permission): string | undefined 
 function extractPermissionPartId(permission: Permission): string | undefined {
   const metadata = (permission as any).metadata || {}
   return (
+    (permission as any).partID ||
+    (permission as any).partId ||
+    metadata.partID ||
+    metadata.partId ||
+    undefined
+  )
+}
+
+function extractPermissionCallId(permission: Permission): string | undefined {
+  const metadata = (permission as any).metadata || {}
+  return (
     (permission as any).callID ||
     (permission as any).callId ||
     (permission as any).toolCallID ||
     (permission as any).toolCallId ||
-    metadata.partId ||
-    metadata.partID ||
     metadata.callID ||
     metadata.callId ||
     undefined
   )
 }
 
+function resolvePartIdFromCallId(store: ReturnType<typeof messageStoreBus.getOrCreate>, messageId?: string, callId?: string): string | undefined {
+  if (!messageId || !callId) return undefined
+  const record = store.getMessage(messageId)
+  if (!record) return undefined
+  for (const partId of record.partIds) {
+    const part = record.parts[partId]?.data
+    if (!part || part.type !== "tool") continue
+    const toolCallId =
+      (part as any).callID ??
+      (part as any).callId ??
+      (part as any).toolCallID ??
+      (part as any).toolCallId ??
+      undefined
+    if (toolCallId === callId && typeof part.id === "string" && part.id.length > 0) {
+      return part.id
+    }
+  }
+  return undefined
+}
+
 export function upsertPermissionV2(instanceId: string, permission: Permission): void {
   if (!permission) return
   const store = messageStoreBus.getOrCreate(instanceId)
+  const messageId = extractPermissionMessageId(permission)
+  let partId = extractPermissionPartId(permission)
+  if (!partId) {
+    const callId = extractPermissionCallId(permission)
+    partId = resolvePartIdFromCallId(store, messageId, callId)
+  }
   store.upsertPermission({
     permission,
-    messageId: extractPermissionMessageId(permission),
-    partId: extractPermissionPartId(permission),
+    messageId,
+    partId,
     enqueuedAt: (permission as any).time?.created ?? Date.now(),
   })
 }
