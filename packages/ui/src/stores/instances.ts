@@ -1,8 +1,9 @@
 import { createSignal } from "solid-js"
 import type { Instance, LogEntry } from "../types/instance"
-import type { LspStatus } from "@opencode-ai/sdk"
+import type { LspStatus } from "@opencode-ai/sdk/v2"
 import type { PermissionReply, PermissionRequestLike } from "../types/permission"
 import { getPermissionCreatedAt, getPermissionSessionId } from "../types/permission"
+import { requestData } from "../lib/opencode-api"
 import { sdkManager } from "../lib/sdk-manager"
 import { sseManager } from "../lib/sse-manager"
 import { serverApi } from "../lib/api-client"
@@ -20,6 +21,7 @@ import { preferences } from "./preferences"
 import { setSessionPendingPermission } from "./session-state"
 import { setHasInstances } from "./ui"
 import { messageStoreBus } from "./message-v2/bus"
+import { upsertPermissionV2, removePermissionV2 } from "./message-v2/bridge"
 import { clearCacheForInstance } from "../lib/global-cache"
 import { getLogger } from "../lib/logger"
 import { mergeInstanceMetadata, clearInstanceMetadata } from "./instance-metadata"
@@ -123,6 +125,37 @@ function releaseInstanceResources(instanceId: string) {
   sseManager.seedStatus(instanceId, "disconnected")
 }
 
+async function syncPendingPermissions(instanceId: string): Promise<void> {
+  const instance = instances().get(instanceId)
+  if (!instance?.client) return
+
+  try {
+    const remote = await requestData<PermissionRequestLike[]>(
+      instance.client.permission.list(),
+      "permission.list",
+    )
+
+    const remoteIds = new Set(remote.map((item) => item.id))
+    const local = getPermissionQueue(instanceId)
+
+    // Remove any stale local permissions missing from server.
+    for (const entry of local) {
+      if (!remoteIds.has(entry.id)) {
+        removePermissionFromQueue(instanceId, entry.id)
+        removePermissionV2(instanceId, entry.id)
+      }
+    }
+
+    // Upsert all server-side pending permissions.
+    for (const permission of remote) {
+      addPermissionToQueue(instanceId, permission)
+      upsertPermissionV2(instanceId, permission)
+    }
+  } catch (error) {
+    log.warn("Failed to sync pending permissions", { instanceId, error })
+  }
+}
+
 async function hydrateInstanceData(instanceId: string) {
   try {
     await fetchSessions(instanceId)
@@ -132,6 +165,7 @@ async function hydrateInstanceData(instanceId: string) {
     const instance = instances().get(instanceId)
     if (!instance?.client) return
     await fetchCommands(instanceId, instance.client)
+    await syncPendingPermissions(instanceId)
   } catch (error) {
     log.error("Failed to fetch initial data", error)
   }
@@ -349,8 +383,7 @@ async function fetchLspStatus(instanceId: string): Promise<LspStatus[] | undefin
     return undefined
   }
   log.info("lsp.status", { instanceId })
-  const response = await lsp.status()
-  return response.data ?? []
+  return await requestData<LspStatus[]>(lsp.status(), "lsp.status")
 }
 
 function getActiveInstance(): Instance | null {
@@ -540,39 +573,14 @@ async function sendPermissionResponse(
     throw new Error("Instance not ready")
   }
 
-  const client: any = instance.client
-
   try {
-    // New API (preferred): POST /permission/:requestID/reply
-    if (typeof client.postPermissionRequestIdReply === "function") {
-      await client.postPermissionRequestIdReply({
-        path: { requestID: requestId },
-        body: { reply },
-      })
-    } else if (typeof client.postPermissionRequestIDReply === "function") {
-      await client.postPermissionRequestIDReply({
-        path: { requestID: requestId },
-        body: { reply },
-      })
-    } else if (typeof client.postPermissionRequestIdReply2 === "function") {
-      await client.postPermissionRequestIdReply2({
-        path: { requestID: requestId },
-        body: { reply },
-      })
-    } else if (client.permission && typeof client.permission.reply === "function") {
-      await client.permission.reply({
-        path: { requestID: requestId },
-        body: { reply },
-      })
-    } else if (typeof client.postSessionIdPermissionsPermissionId === "function") {
-      // Legacy API fallback: POST /session/:sessionID/permissions/:permissionID
-      await client.postSessionIdPermissionsPermissionId({
-        path: { id: sessionId, permissionID: requestId },
-        body: { response: reply },
-      })
-    } else {
-      throw new Error("Unsupported permissions API in client")
-    }
+    await requestData(
+      instance.client.permission.reply({
+        requestID: requestId,
+        reply,
+      }),
+      "permission.reply",
+    )
 
     // Remove from queue after successful response
     removePermissionFromQueue(instanceId, requestId)

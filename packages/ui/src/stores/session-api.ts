@@ -33,6 +33,7 @@ import { seedSessionMessagesV2 } from "./message-v2/bridge"
 import { messageStoreBus } from "./message-v2/bus"
 import { clearCacheForSession } from "../lib/global-cache"
 import { getLogger } from "../lib/logger"
+import { requestData } from "../lib/opencode-api"
 
 const log = getLogger("api")
 
@@ -269,25 +270,16 @@ async function forkSession(
     throw new Error("Instance not ready")
   }
 
-  const request: {
-    path: { id: string }
-    body?: { messageID: string }
-  } = {
-    path: { id: sourceSessionId },
-  }
-
-  if (options?.messageId) {
-    request.body = { messageID: options.messageId }
+  const request: { sessionID: string; messageID?: string } = {
+    sessionID: sourceSessionId,
+    messageID: options?.messageId,
   }
 
   log.info(`[HTTP] POST /session.fork for instance ${instanceId}`, request)
-  const response = await instance.client.session.fork(request)
-
-  if (!response.data) {
-    throw new Error("Failed to fork session: No data returned")
-  }
-
-  const info = response.data as SessionForkResponse
+  const info = await requestData<SessionForkResponse>(
+    instance.client.session.fork(request),
+    "session.fork",
+  )
   const forkedSession = {
     id: info.id,
     instanceId,
@@ -365,7 +357,7 @@ async function deleteSession(instanceId: string, sessionId: string): Promise<voi
 
   try {
     log.info(`[HTTP] DELETE /session.delete for instance ${instanceId}`, { sessionId })
-    await instance.client.session.delete({ path: { id: sessionId } })
+    await requestData(instance.client.session.delete({ sessionID: sessionId }), "session.delete")
 
     setSessions((prev) => {
       const next = new Map(prev)
@@ -528,14 +520,17 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
 
   try {
     log.info(`[HTTP] GET /session.${"messages"} for instance ${instanceId}`, { sessionId })
-    const response = await instance.client.session["messages"]({ path: { id: sessionId } })
+    const apiMessages = await requestData<any[]>(
+      instance.client.session.messages({ sessionID: sessionId }),
+      "session.messages",
+    )
 
-    if (!response.data || !Array.isArray(response.data)) {
+    if (!Array.isArray(apiMessages) || apiMessages.length === 0) {
       return
     }
 
     const messagesInfo = new Map<string, any>()
-    const messages: Message[] = response.data.map((apiMessage: any) => {
+    const messages: Message[] = apiMessages.map((apiMessage: any) => {
       const info = apiMessage.info || apiMessage
       const role = info.role || "assistant"
       const messageId = info.id || String(Date.now())
@@ -561,8 +556,8 @@ async function loadMessages(instanceId: string, sessionId: string, force = false
     let providerID = ""
     let modelID = ""
 
-    for (let i = response.data.length - 1; i >= 0; i--) {
-      const apiMessage = response.data[i]
+    for (let i = apiMessages.length - 1; i >= 0; i--) {
+      const apiMessage = apiMessages[i]
       const info = apiMessage.info || apiMessage
 
       if (info.role === "assistant") {

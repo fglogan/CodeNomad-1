@@ -15,6 +15,7 @@ import type {
 import type { MessageStatus } from "./message-v2/types"
 
 import { getLogger } from "../lib/logger"
+import { requestData } from "../lib/opencode-api"
 import { getPermissionId, getPermissionKind, getRequestIdFromPermissionReply } from "../types/permission"
 import type { PermissionReplyEventPropertiesLike, PermissionRequestLike } from "../types/permission"
 import { showToastNotification, ToastVariant } from "../lib/notifications"
@@ -79,10 +80,12 @@ async function fetchSessionInfo(instanceId: string, sessionId: string): Promise<
   if (!instance?.client) return null
 
   try {
-    const response = await instance.client.session.get({ path: { id: sessionId } })
-    if (!response.data) return null
+    const info = await requestData<any>(
+      instance.client.session.get({ sessionID: sessionId }),
+      "session.get",
+    )
 
-    const fetched = createClientSession(response.data, instanceId)
+    const fetched = createClientSession(info, instanceId)
 
     setSessions((prev) => {
       const next = new Map(prev)

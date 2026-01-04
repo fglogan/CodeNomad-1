@@ -7,6 +7,7 @@ import { messageStoreBus } from "./message-v2/bus"
 import { instances } from "./instances"
 import { showConfirmDialog } from "./alerts"
 import { getLogger } from "../lib/logger"
+import { requestData } from "../lib/opencode-api"
 
 const log = getLogger("session")
 
@@ -283,8 +284,10 @@ async function isBlankSession(session: Session, instanceId: string, fetchIfNeede
   }
   let messages: any[] = []
   try {
-    const response = await instance.client.session.messages({ path: { id: session.id } })
-    messages = response.data || []
+    messages = await requestData<any[]>(
+      instance.client.session.messages({ sessionID: session.id }),
+      "session.messages",
+    )
   } catch (error) {
     log.error(`Failed to fetch messages for session ${session.id}`, error)
     return isFreshSession
