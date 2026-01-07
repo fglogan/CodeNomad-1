@@ -1,6 +1,5 @@
 import { Show, createSignal, onCleanup, onMount } from "solid-js"
 import { render } from "solid-js/web"
-import iconUrl from "../../images/CodeNomad-Icon.png"
 import { runtimeEnv, isTauriHost } from "../../lib/runtime-env"
 import "../../index.css"
 import "./loading.css"
@@ -136,9 +135,11 @@ function LoadingApp() {
 
   return (
     <div class="loading-wrapper" role="status" aria-live="polite">
-      <img src={iconUrl} alt="CodeNomad" class="loading-logo" width="180" height="180" />
+      <div class="loading-logo-text">
+        <span class="genesis-text">Genesis</span>
+        <span class="console-text">Console</span>
+      </div>
       <div class="loading-heading">
-        <h1 class="loading-title">CodeNomad</h1>
         <Show when={status()}>{(statusText) => <p class="loading-status">{statusText()}</p>}</Show>
       </div>
       <div class="loading-card">

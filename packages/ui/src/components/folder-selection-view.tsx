@@ -6,7 +6,13 @@ import DirectoryBrowserDialog from "./directory-browser-dialog"
 import Kbd from "./kbd"
 import { openNativeFolderDialog, supportsNativeDialogs } from "../lib/native/native-functions"
 
-const codeNomadLogo = new URL("../images/CodeNomad-Icon.png", import.meta.url).href
+// Genesis Console branding - styled text logo component
+const GenesisLogo = () => (
+  <div class="flex flex-col items-center justify-center" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <span style="font-size: 3.5rem; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Genesis</span>
+    <span style="font-size: 1.5rem; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-secondary); margin-top: -0.25rem;">Console</span>
+  </div>
+)
 
 
 interface FolderSelectionViewProps {
@@ -244,9 +250,8 @@ const FolderSelectionView: Component<FolderSelectionViewProps> = (props) => {
           </Show>
         <div class="mb-6 text-center shrink-0">
           <div class="mb-3 flex justify-center">
-            <img src={codeNomadLogo} alt="CodeNomad logo" class="h-32 w-auto sm:h-48" loading="lazy" />
+            <GenesisLogo />
           </div>
-          <h1 class="mb-2 text-3xl font-semibold text-primary">CodeNomad</h1>
           <p class="text-base text-secondary">Select a folder to start coding with AI</p>
         </div>
 

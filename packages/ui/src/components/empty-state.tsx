@@ -1,7 +1,13 @@
 import { Component } from "solid-js"
 import { Loader2 } from "lucide-solid"
 
-const codeNomadIcon = new URL("../images/CodeNomad-Icon.png", import.meta.url).href
+// Genesis Console branding - styled text logo component
+const GenesisLogo = () => (
+  <div class="flex flex-col items-center justify-center" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <span style="font-size: 3rem; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Genesis</span>
+    <span style="font-size: 1.25rem; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-secondary); margin-top: -0.25rem;">Console</span>
+  </div>
+)
 
 interface EmptyStateProps {
   onSelectFolder: () => void
@@ -13,10 +19,9 @@ const EmptyState: Component<EmptyStateProps> = (props) => {
     <div class="flex h-full w-full items-center justify-center bg-surface-secondary">
       <div class="max-w-[500px] px-8 py-12 text-center">
         <div class="mb-8 flex justify-center">
-          <img src={codeNomadIcon} alt="CodeNomad logo" class="h-24 w-auto" loading="lazy" />
+          <GenesisLogo />
         </div>
 
-        <h1 class="mb-3 text-3xl font-semibold text-primary">CodeNomad</h1>
         <p class="mb-8 text-base text-secondary">Select a folder to start coding with AI</p>
 
 
