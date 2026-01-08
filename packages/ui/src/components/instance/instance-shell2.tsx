@@ -1,5 +1,4 @@
 import {
-  For,
   Show,
   batch,
   createEffect,
@@ -11,21 +10,14 @@ import {
   type Component,
 } from "solid-js"
 import type { ToolState } from "@opencode-ai/sdk"
-import { Accordion } from "@kobalte/core"
-import { ChevronDown, TerminalSquare, Trash2, XOctagon } from "lucide-solid"
 import AppBar from "@suid/material/AppBar"
 import Box from "@suid/material/Box"
-import Divider from "@suid/material/Divider"
 import Drawer from "@suid/material/Drawer"
 import IconButton from "@suid/material/IconButton"
 import Toolbar from "@suid/material/Toolbar"
-import Typography from "@suid/material/Typography"
 import useMediaQuery from "@suid/material/useMediaQuery"
-import CloseIcon from "@suid/icons-material/Close"
 import MenuIcon from "@suid/icons-material/Menu"
 import MenuOpenIcon from "@suid/icons-material/MenuOpen"
-import PushPinIcon from "@suid/icons-material/PushPin"
-import PushPinOutlinedIcon from "@suid/icons-material/PushPinOutlined"
 import type { Instance } from "../../types/instance"
 import type { Command } from "../../lib/commands"
 import type { BackgroundProcess } from "../../../../server/src/api-types"
@@ -42,18 +34,9 @@ import { clearSessionRenderCache } from "../message-block"
 import { buildCustomCommandEntries } from "../../lib/command-utils"
 import { getCommands as getInstanceCommands } from "../../stores/commands"
 import { isOpen as isCommandPaletteOpen, hideCommandPalette, showCommandPalette } from "../../stores/command-palette"
-import SessionList from "../session-list"
-import KeyboardHint from "../keyboard-hint"
 import InstanceWelcomeView from "../instance-welcome-view"
-import InfoView from "../info-view"
-import InstanceServiceStatus from "../instance-service-status"
-import AgentSelector from "../agent-selector"
-import ModelSelector from "../model-selector"
 import CommandPalette from "../command-palette"
 import Kbd from "../kbd"
-import { TodoListView } from "../tool-call/renderers/todo"
-import ContextUsagePanel from "../session/context-usage-panel"
-import SessionView from "../session/session-view"
 import { formatTokenTotal } from "../../lib/formatters"
 import { sseManager } from "../../lib/sse-manager"
 import { getLogger } from "../../lib/logger"
@@ -65,6 +48,9 @@ import {
   type SessionSidebarRequestAction,
   type SessionSidebarRequestDetail,
 } from "../../lib/session-sidebar-events"
+import { NavigatorPanel } from "../navigator"
+import { AssistantPanel } from "../assistant"
+import { WorkspacePanel } from "../workspace"
 
 const log = getLogger("session")
 
@@ -804,272 +790,47 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   }
 
   const LeftDrawerContent = () => (
-    <div class="flex flex-col h-full min-h-0" ref={setLeftDrawerContentEl}>
-      <div class="flex items-start justify-between gap-2 px-4 py-3 border-b border-base">
-        <div class="flex flex-col gap-1">
-          <span class="session-sidebar-title text-sm font-semibold uppercase text-primary">Sessions</span>
-          <div class="session-sidebar-shortcuts">
-            <Show when={keyboardShortcuts().length}>
-              <KeyboardHint shortcuts={keyboardShortcuts()} separator=" " showDescription={false} />
-            </Show>
-          </div>
-        </div>
-          <div class="flex items-center gap-2">
-            <Show when={!isPhoneLayout()}>
-              <IconButton
-                size="small"
-                color="inherit"
-                aria-label={leftPinned() ? "Unpin left drawer" : "Pin left drawer"}
-                onClick={() => (leftPinned() ? unpinLeftDrawer() : pinLeftDrawer())}
-              >
-                {leftPinned() ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
-              </IconButton>
-            </Show>
-          </div>
-
-      </div>
-
-      <div class="session-sidebar flex flex-col flex-1 min-h-0">
-        <SessionList
-          instanceId={props.instance.id}
-          sessions={activeSessions()}
-          activeSessionId={activeSessionIdForInstance()}
-          onSelect={handleSessionSelect}
-          onClose={(id) => {
-            const result = props.onCloseSession(id)
-            if (result instanceof Promise) {
-              void result.catch((error) => log.error("Failed to close session:", error))
-            }
-          }}
-          onNew={() => {
-            const result = props.onNewSession()
-            if (result instanceof Promise) {
-              void result.catch((error) => log.error("Failed to create session:", error))
-            }
-          }}
-          showHeader={false}
-          showFooter={false}
-        />
-
-        <Divider />
-        <Show when={activeSessionForInstance()}>
-          {(activeSession) => (
-            <>
-              <ContextUsagePanel instanceId={props.instance.id} sessionId={activeSession().id} />
-              <div class="session-sidebar-controls px-4 py-4 border-t border-base flex flex-col gap-3">
-                <AgentSelector
-                  instanceId={props.instance.id}
-                  sessionId={activeSession().id}
-                  currentAgent={activeSession().agent}
-                  onAgentChange={(agent) => props.handleSidebarAgentChange(activeSession().id, agent)}
-                />
-
-                <div class="sidebar-selector-hints" aria-hidden="true">
-                  <span class="hint sidebar-selector-hint sidebar-selector-hint--left">
-                    <Kbd shortcut="cmd+shift+a" />
-                  </span>
-                  <span class="hint sidebar-selector-hint sidebar-selector-hint--right">
-                    <Kbd shortcut="cmd+shift+m" />
-                  </span>
-                </div>
-
-                <ModelSelector
-                  instanceId={props.instance.id}
-                  sessionId={activeSession().id}
-                  currentModel={activeSession().model}
-                  onModelChange={(model) => props.handleSidebarModelChange(activeSession().id, model)}
-                />
-              </div>
-            </>
-          )}
-        </Show>
-      </div>
-    </div>
+    <NavigatorPanel
+      instanceId={props.instance.id}
+      sessions={activeSessions()}
+      activeSessionId={activeSessionIdForInstance()}
+      activeSession={activeSessionForInstance()}
+      isPinned={leftPinned()}
+      showPinButton={!isPhoneLayout()}
+      keyboardShortcuts={keyboardShortcuts()}
+      setContentRef={setLeftDrawerContentEl}
+      onSessionSelect={handleSessionSelect}
+      onSessionClose={(id) => {
+        const result = props.onCloseSession(id)
+        if (result instanceof Promise) {
+          void result.catch((error) => log.error("Failed to close session:", error))
+        }
+      }}
+      onNewSession={() => {
+        const result = props.onNewSession()
+        if (result instanceof Promise) {
+          void result.catch((error) => log.error("Failed to create session:", error))
+        }
+      }}
+      onPinToggle={() => (leftPinned() ? unpinLeftDrawer() : pinLeftDrawer())}
+      onAgentChange={props.handleSidebarAgentChange}
+      onModelChange={props.handleSidebarModelChange}
+    />
   )
 
-  const RightDrawerContent = () => {
-    const renderPlanSectionContent = () => {
-      const sessionId = activeSessionIdForInstance()
-      if (!sessionId || sessionId === "info") {
-        return <p class="text-xs text-secondary">Select a session to view plan.</p>
-      }
-      const todoState = latestTodoState()
-      if (!todoState) {
-        return <p class="text-xs text-secondary">Nothing planned yet.</p>
-      }
-      return <TodoListView state={todoState} emptyLabel="Nothing planned yet." showStatusLabel={false} />
-    }
-
-    const renderBackgroundProcesses = () => {
-      const processes = backgroundProcessList()
-      if (processes.length === 0) {
-        return <p class="text-xs text-secondary">No background processes.</p>
-      }
-
-      return (
-        <div class="flex flex-col gap-2">
-          <For each={processes}>
-            {(process) => (
-              <div class="rounded-md border border-base bg-surface-secondary p-2 flex flex-col gap-2">
-                <div class="flex flex-col gap-1">
-                  <span class="text-xs font-semibold text-primary">{process.title}</span>
-                  <div class="flex flex-wrap gap-2 text-[11px] text-secondary">
-                    <span>Status: {process.status}</span>
-                    <Show when={typeof process.outputSizeBytes === "number"}>
-                      <span>Output: {Math.round((process.outputSizeBytes ?? 0) / 1024)}KB</span>
-                    </Show>
-                  </div>
-                </div>
-                <div class="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    class="button-tertiary w-full p-1 inline-flex items-center justify-center"
-                    onClick={() => openBackgroundOutput(process)}
-                    aria-label="Output"
-                    title="Output"
-                  >
-                    <TerminalSquare class="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    class="button-tertiary w-full p-1 inline-flex items-center justify-center"
-                    disabled={process.status !== "running"}
-                    onClick={() => stopBackgroundProcess(process.id)}
-                    aria-label="Stop"
-                    title="Stop"
-                  >
-                    <XOctagon class="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    class="button-tertiary w-full p-1 inline-flex items-center justify-center"
-                    onClick={() => terminateBackgroundProcess(process.id)}
-                    aria-label="Terminate"
-                    title="Terminate"
-                  >
-                    <Trash2 class="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </For>
-        </div>
-      )
-    }
-
-    const sections = [
-      {
-        id: "plan",
-        label: "Plan",
-        render: renderPlanSectionContent,
-      },
-      {
-        id: "background-processes",
-        label: "Background Shells",
-        render: renderBackgroundProcesses,
-      },
-      {
-        id: "mcp",
-        label: "MCP Servers",
-        render: () => (
-          <InstanceServiceStatus
-            initialInstance={props.instance}
-            sections={["mcp"]}
-            showSectionHeadings={false}
-            class="space-y-2"
-          />
-        ),
-      },
-      {
-        id: "lsp",
-        label: "LSP Servers",
-        render: () => (
-          <InstanceServiceStatus
-            initialInstance={props.instance}
-            sections={["lsp"]}
-            showSectionHeadings={false}
-            class="space-y-2"
-          />
-        ),
-      },
-      {
-        id: "plugins",
-        label: "Plugins",
-        render: () => (
-          <InstanceServiceStatus
-            initialInstance={props.instance}
-            sections={["plugins"]}
-            showSectionHeadings={false}
-            class="space-y-2"
-          />
-        ),
-      },
-    ]
-
-    createEffect(() => {
-      const currentExpanded = new Set(rightPanelExpandedItems())
-      if (sections.every((section) => currentExpanded.has(section.id))) return
-      setRightPanelExpandedItems(sections.map((section) => section.id))
-    })
-
-    const handleAccordionChange = (values: string[]) => {
-      setRightPanelExpandedItems(values)
-    }
-
-    const isSectionExpanded = (id: string) => rightPanelExpandedItems().includes(id)
-
-    return (
-      <div class="flex flex-col h-full" ref={setRightDrawerContentEl}>
-        <div class="flex items-center justify-between px-4 py-2 border-b border-base">
-          <Typography variant="subtitle2" class="uppercase tracking-wide text-xs font-semibold">
-            Status Panel
-          </Typography>
-          <div class="flex items-center gap-2">
-            <Show when={!isPhoneLayout()}>
-              <IconButton
-                size="small"
-                color="inherit"
-                aria-label={rightPinned() ? "Unpin right drawer" : "Pin right drawer"}
-                onClick={() => (rightPinned() ? unpinRightDrawer() : pinRightDrawer())}
-              >
-                {rightPinned() ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
-              </IconButton>
-            </Show>
-          </div>
-        </div>
-        <div class="flex-1 overflow-y-auto">
-          <Accordion.Root
-            class="flex flex-col"
-            collapsible
-            multiple
-            value={rightPanelExpandedItems()}
-            onChange={handleAccordionChange}
-          >
-            <For each={sections}>
-              {(section) => (
-                <Accordion.Item
-                  value={section.id}
-                  class="w-full border border-base bg-surface-secondary text-primary"
-                >
-                  <Accordion.Header>
-                    <Accordion.Trigger class="w-full flex items-center justify-between gap-3 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide">
-                      <span>{section.label}</span>
-                      <ChevronDown
-                        class={`h-4 w-4 transition-transform duration-150 ${isSectionExpanded(section.id) ? "rotate-180" : ""}`}
-                      />
-                    </Accordion.Trigger>
-                  </Accordion.Header>
-                  <Accordion.Content class="w-full px-3 pb-3 text-sm text-primary">
-                    {section.render()}
-                  </Accordion.Content>
-                </Accordion.Item>
-              )}
-            </For>
-          </Accordion.Root>
-        </div>
-      </div>
-    )
-  }
+  const RightDrawerContent = () => (
+    <AssistantPanel
+      instance={props.instance}
+      activeSessionId={activeSessionIdForInstance()}
+      latestTodoState={latestTodoState()}
+      backgroundProcesses={backgroundProcessList()}
+      isPinned={rightPinned()}
+      showPinButton={!isPhoneLayout()}
+      setContentRef={setRightDrawerContentEl}
+      onPinToggle={() => (rightPinned() ? unpinRightDrawer() : pinRightDrawer())}
+      onOpenProcessOutput={openBackgroundOutput}
+    />
+  )
 
   const renderLeftPanel = () => {
     if (leftPinned()) {
@@ -1192,8 +953,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
 
   const hasSessions = createMemo(() => activeSessions().size > 0)
 
-  const showingInfoView = createMemo(() => activeSessionIdForInstance() === "info")
-
   const sessionLayout = (
     <div
       class="session-shell-panels flex flex-col flex-1 min-h-0 overflow-x-hidden"
@@ -1281,7 +1040,7 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
                  {leftAppBarButtonIcon()}
                </IconButton>
 
-               <Show when={!showingInfoView()}>
+               <Show when={activeSessionIdForInstance() !== "info"}>
                  <div class="inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary">
                    <span class="uppercase text-[10px] tracking-wide text-primary/70">Used</span>
                    <span class="font-semibold text-primary">{formattedUsedTokens()}</span>
@@ -1350,58 +1109,16 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
       <Box sx={{ display: "flex", flex: 1, minHeight: 0, overflowX: "hidden" }}>
         {renderLeftPanel()}
 
-        <Box
-          component="main"
-          sx={{ flexGrow: 1, minHeight: 0, display: "flex", flexDirection: "column", overflowX: "hidden" }}
-          class="content-area"
-        >
-          <Show
-            when={showingInfoView()}
-            fallback={
-              <Show
-                when={cachedSessionIds().length > 0 && activeSessionIdForInstance()}
-                fallback={
-                  <div class="flex items-center justify-center h-full">
-                    <div class="text-center text-gray-500 dark:text-gray-400">
-                      <p class="mb-2">No session selected</p>
-                      <p class="text-sm">Select a session to view messages</p>
-                    </div>
-                  </div>
-                }
-              >
-                <For each={cachedSessionIds()}>
-                  {(sessionId) => {
-                    const isActive = () => activeSessionIdForInstance() === sessionId
-                    return (
-                      <div
-                        class="session-cache-pane flex flex-col flex-1 min-h-0"
-                        style={{ display: isActive() ? "flex" : "none" }}
-                        data-session-id={sessionId}
-                        aria-hidden={!isActive()}
-                      >
-                        <SessionView
-                          sessionId={sessionId}
-                          activeSessions={activeSessions()}
-                          instanceId={props.instance.id}
-                          instanceFolder={props.instance.folder}
-                          escapeInDebounce={props.escapeInDebounce}
-                          showSidebarToggle={showEmbeddedSidebarToggle()}
-                          onSidebarToggle={() => setLeftOpen(true)}
-                          forceCompactStatusLayout={showEmbeddedSidebarToggle()}
-                          isActive={isActive()}
-                        />
-                      </div>
-                    )
-                  }}
-                </For>
-              </Show>
-            }
-          >
-            <div class="info-view-pane flex flex-col flex-1 min-h-0 overflow-y-auto">
-              <InfoView instanceId={props.instance.id} />
-            </div>
-          </Show>
-        </Box>
+        <WorkspacePanel
+          instanceId={props.instance.id}
+          instanceFolder={props.instance.folder}
+          cachedSessionIds={cachedSessionIds()}
+          activeSessionId={activeSessionIdForInstance()}
+          activeSessions={activeSessions()}
+          escapeInDebounce={props.escapeInDebounce}
+          showSidebarToggle={showEmbeddedSidebarToggle()}
+          onSidebarToggle={() => setLeftOpen(true)}
+        />
 
         {renderRightPanel()}
       </Box>
