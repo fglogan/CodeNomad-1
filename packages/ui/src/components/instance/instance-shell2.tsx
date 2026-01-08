@@ -10,14 +10,10 @@ import {
   type Component,
 } from "solid-js"
 import type { ToolState } from "@opencode-ai/sdk"
-import AppBar from "@suid/material/AppBar"
 import Box from "@suid/material/Box"
 import Drawer from "@suid/material/Drawer"
-import IconButton from "@suid/material/IconButton"
-import Toolbar from "@suid/material/Toolbar"
 import useMediaQuery from "@suid/material/useMediaQuery"
-import MenuIcon from "@suid/icons-material/Menu"
-import MenuOpenIcon from "@suid/icons-material/MenuOpen"
+import ShellHeader from "./shell-header"
 import type { Instance } from "../../types/instance"
 import type { Command } from "../../lib/commands"
 import type { BackgroundProcess } from "../../../../server/src/api-types"
@@ -36,7 +32,6 @@ import { getCommands as getInstanceCommands } from "../../stores/commands"
 import { isOpen as isCommandPaletteOpen, hideCommandPalette, showCommandPalette } from "../../stores/command-palette"
 import InstanceWelcomeView from "../instance-welcome-view"
 import CommandPalette from "../command-palette"
-import Kbd from "../kbd"
 import { formatTokenTotal } from "../../lib/formatters"
 import { sseManager } from "../../lib/sse-manager"
 import { getLogger } from "../../lib/logger"
@@ -322,12 +317,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
   const backgroundProcessList = createMemo(() => getBackgroundProcesses(props.instance.id))
 
   const connectionStatus = () => sseManager.getStatus(props.instance.id)
-  const connectionStatusClass = () => {
-    const status = connectionStatus()
-    if (status === "connecting") return "connecting"
-    if (status === "connected") return "connected"
-    return "disconnected"
-  }
 
   const handleCommandPaletteClick = () => {
     showCommandPalette(props.instance.id)
@@ -652,32 +641,6 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
     return rightOpen() ? "floating-open" : "floating-closed"
   })
 
-  const leftAppBarButtonLabel = () => {
-    const state = leftDrawerState()
-    if (state === "pinned") return "Left drawer pinned"
-    if (state === "floating-closed") return "Open left drawer"
-    return "Close left drawer"
-  }
-
-  const rightAppBarButtonLabel = () => {
-    const state = rightDrawerState()
-    if (state === "pinned") return "Right drawer pinned"
-    if (state === "floating-closed") return "Open right drawer"
-    return "Close right drawer"
-  }
-
-  const leftAppBarButtonIcon = () => {
-    const state = leftDrawerState()
-    if (state === "floating-closed") return <MenuIcon fontSize="small" />
-    return <MenuOpenIcon fontSize="small" />
-  }
-
-  const rightAppBarButtonIcon = () => {
-    const state = rightDrawerState()
-    if (state === "floating-closed") return <MenuIcon fontSize="small" sx={{ transform: "scaleX(-1)" }} />
-    return <MenuOpenIcon fontSize="small" sx={{ transform: "scaleX(-1)" }} />
-  }
-
 
 
 
@@ -961,150 +924,20 @@ const InstanceShell2: Component<InstanceShellProps> = (props) => {
         measureDrawerHost()
       }}
     >
-      <AppBar position="sticky" color="default" elevation={0} class="border-b border-base">
-        <Toolbar variant="dense" class="session-toolbar flex flex-wrap items-center gap-2 py-0 min-h-[40px]">
-          <Show
-            when={!isPhoneLayout()}
-            fallback={
-              <div class="flex flex-col w-full gap-1.5">
-                <div class="flex flex-wrap items-center justify-between gap-2 w-full">
-                  <IconButton
-                    ref={setLeftToggleButtonEl}
-                    color="inherit"
-                    onClick={handleLeftAppBarButtonClick}
-                    aria-label={leftAppBarButtonLabel()}
-                    size="small"
-                    aria-expanded={leftDrawerState() !== "floating-closed"}
-                    disabled={leftDrawerState() === "pinned"}
-                  >
-                    {leftAppBarButtonIcon()}
-                  </IconButton>
-
-                  <div class="flex flex-wrap items-center gap-1 justify-center">
-                    <button
-                      type="button"
-                      class="connection-status-button px-2 py-0.5 text-xs"
-                      onClick={handleCommandPaletteClick}
-                      aria-label="Open command palette"
-                      style={{ flex: "0 0 auto", width: "auto" }}
-                    >
-                      Command Palette
-                    </button>
-                    <span class="connection-status-shortcut-hint">
-                      <Kbd shortcut="cmd+shift+p" />
-                    </span>
-                    <span
-                      class={`status-indicator ${connectionStatusClass()}`}
-                      aria-label={`Connection ${connectionStatus()}`}
-                    >
-                      <span class="status-dot" />
-                    </span>
-                  </div>
-
-                  <IconButton
-                    ref={setRightToggleButtonEl}
-                    color="inherit"
-                    onClick={handleRightAppBarButtonClick}
-                    aria-label={rightAppBarButtonLabel()}
-                    size="small"
-                    aria-expanded={rightDrawerState() !== "floating-closed"}
-                    disabled={rightDrawerState() === "pinned"}
-                  >
-                    {rightAppBarButtonIcon()}
-                  </IconButton>
-                </div>
-
-                <div class="flex flex-wrap items-center justify-center gap-2 pb-1">
-                  <div class="inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary">
-                    <span class="uppercase text-[10px] tracking-wide text-primary/70">Used</span>
-                    <span class="font-semibold text-primary">{formattedUsedTokens()}</span>
-                  </div>
-                  <div class="inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary">
-                    <span class="uppercase text-[10px] tracking-wide text-primary/70">Avail</span>
-                    <span class="font-semibold text-primary">{formattedAvailableTokens()}</span>
-                  </div>
-                </div>
-              </div>
-            }
-          >
-             <div class="session-toolbar-left flex items-center gap-3 min-w-0">
-               <IconButton
-                 ref={setLeftToggleButtonEl}
-                 color="inherit"
-                 onClick={handleLeftAppBarButtonClick}
-                 aria-label={leftAppBarButtonLabel()}
-                 size="small"
-                 aria-expanded={leftDrawerState() !== "floating-closed"}
-                 disabled={leftDrawerState() === "pinned"}
-               >
-                 {leftAppBarButtonIcon()}
-               </IconButton>
-
-               <Show when={activeSessionIdForInstance() !== "info"}>
-                 <div class="inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary">
-                   <span class="uppercase text-[10px] tracking-wide text-primary/70">Used</span>
-                   <span class="font-semibold text-primary">{formattedUsedTokens()}</span>
-                 </div>
-                 <div class="inline-flex items-center gap-1 rounded-full border border-base px-2 py-0.5 text-xs text-primary">
-                   <span class="uppercase text-[10px] tracking-wide text-primary/70">Avail</span>
-                   <span class="font-semibold text-primary">{formattedAvailableTokens()}</span>
-                 </div>
-               </Show>
-             </div>
-
-
-              <div class="session-toolbar-center flex-1 flex items-center justify-center gap-2 min-w-[160px]">
-                <button
-                  type="button"
-                  class="connection-status-button px-2 py-0.5 text-xs"
-                  onClick={handleCommandPaletteClick}
-                  aria-label="Open command palette"
-                  style={{ flex: "0 0 auto", width: "auto" }}
-                >
-                  Command Palette
-                </button>
-                <span class="connection-status-shortcut-hint">
-                  <Kbd shortcut="cmd+shift+p" />
-                </span>
-              </div>
-
-
-            <div class="session-toolbar-right flex items-center gap-3">
-              <div class="connection-status-meta flex items-center gap-3">
-                <Show when={connectionStatus() === "connected"}>
-                  <span class="status-indicator connected">
-                    <span class="status-dot" />
-                    <span class="status-text">Connected</span>
-                  </span>
-                </Show>
-                <Show when={connectionStatus() === "connecting"}>
-                  <span class="status-indicator connecting">
-                    <span class="status-dot" />
-                    <span class="status-text">Connecting...</span>
-                  </span>
-                </Show>
-                <Show when={connectionStatus() === "error" || connectionStatus() === "disconnected"}>
-                  <span class="status-indicator disconnected">
-                    <span class="status-dot" />
-                    <span class="status-text">Disconnected</span>
-                  </span>
-                </Show>
-              </div>
-              <IconButton
-                ref={setRightToggleButtonEl}
-                color="inherit"
-                onClick={handleRightAppBarButtonClick}
-                aria-label={rightAppBarButtonLabel()}
-                size="small"
-                aria-expanded={rightDrawerState() !== "floating-closed"}
-                disabled={rightDrawerState() === "pinned"}
-              >
-                {rightAppBarButtonIcon()}
-              </IconButton>
-            </div>
-          </Show>
-        </Toolbar>
-      </AppBar>
+      <ShellHeader
+        isPhoneLayout={isPhoneLayout()}
+        activeSessionId={activeSessionIdForInstance()}
+        connectionStatus={connectionStatus()}
+        formattedUsedTokens={formattedUsedTokens()}
+        formattedAvailableTokens={formattedAvailableTokens()}
+        leftDrawerState={leftDrawerState()}
+        leftToggleButtonRef={setLeftToggleButtonEl}
+        onLeftButtonClick={handleLeftAppBarButtonClick}
+        rightDrawerState={rightDrawerState()}
+        rightToggleButtonRef={setRightToggleButtonEl}
+        onRightButtonClick={handleRightAppBarButtonClick}
+        onCommandPaletteClick={handleCommandPaletteClick}
+      />
 
       <Box sx={{ display: "flex", flex: 1, minHeight: 0, overflowX: "hidden" }}>
         {renderLeftPanel()}
