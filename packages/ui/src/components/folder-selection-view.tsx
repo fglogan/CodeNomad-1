@@ -8,9 +8,25 @@ import { openNativeFolderDialog, supportsNativeDialogs } from "../lib/native/nat
 
 // Genesis Console branding - styled text logo component
 const GenesisLogo = () => (
-  <div class="flex flex-col items-center justify-center" style="font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-    <span style="font-size: 3.5rem; font-weight: 700; letter-spacing: -0.02em; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Genesis</span>
-    <span style="font-size: 1.5rem; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-secondary); margin-top: -0.25rem;">Console</span>
+  <div class="flex flex-col items-center justify-center" style={{ "font-family": "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+    <span style={{
+      "font-size": "3.5rem",
+      "font-weight": "700",
+      "letter-spacing": "-0.02em",
+      "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+      "-webkit-background-clip": "text",
+      "background-clip": "text",
+      "-webkit-text-fill-color": "transparent",
+      "color": "transparent"
+    }}>Genesis</span>
+    <span style={{
+      "font-size": "1.5rem",
+      "font-weight": "500",
+      "letter-spacing": "0.15em",
+      "text-transform": "uppercase",
+      "color": "var(--text-secondary)",
+      "margin-top": "-0.25rem"
+    }}>Console</span>
   </div>
 )
 
